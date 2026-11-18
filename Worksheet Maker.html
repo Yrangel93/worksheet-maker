@@ -627,7 +627,7 @@ function findExtras(rgba, ink, W, H) {
     var col = labs.filter(function (g) { return g.side === sd; }); if (col.length < 3) return;
     var ys = col.map(function (g) { return (g.y0 + g.y1) / 2; }).sort(function (a, b) { return a - b; }), gaps = [];
     for (var k = 1; k < ys.length; k++) gaps.push(ys[k] - ys[k - 1]); gaps.sort(function (a, b) { return a - b; });
-    var pitch = gaps[0] || 0.03 * H;
+    var pitch = gaps.length ? gaps[gaps.length >> 1] : 0.03 * H;
     groups.forEach(function (g) {
       if (labs.indexOf(g) >= 0) return;
       var h = g.y1 - g.y0 + 1, cy = (g.y0 + g.y1) / 2;
@@ -654,6 +654,14 @@ function findExtras(rgba, ink, W, H) {
         add.push({ x: bx / W, y: (cy - bh / 2) / H, w: bw / W, h: bh / H, label: true, k: 'diagram' });
       });
     });
+    var dg = add.filter(function (b) { return b.k === 'diagram'; });
+    dg.forEach(function (a) { dg.forEach(function (b) { // two labels close together (3 and the small 4 under it): split the overlap so both keep a box
+      if (a === b || a.y > b.y) return;
+      var ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), oy = a.y + a.h - b.y;
+      if (ox <= 0 || oy <= 0) return;
+      var mid = (a.y + a.h / 2 + b.y + b.h / 2) / 2, g = 0.002;
+      var ha = Math.min(a.h, 0.012), hb = Math.min(b.h, 0.012); a.y = mid - g - ha; a.h = ha; b.y = mid + g; b.h = hb; // above and below the split, each still a full line tall
+    }); });
   }
 
   /* (3) blank brackets "(    )" */
@@ -980,13 +988,18 @@ function findAnswerLines(rgba, W, H, opt) {
   // 5b. skip picture frames, boxes and tables: a line whose two ends meet vertical lines,
   //     or that sits inside a small box
   var frameLines = [];
-  function tick(l, xe, dir) { // short vertical tick at a line end (family-tree bracket)
+  function tick(l, xe, dir, out) { // short vertical tick at a line end (family-tree bracket)
     var hg = Math.max(6, Math.round(H * 0.009)), y0 = Math.round(lineY(l, xe));
     for (var xx = Math.round(xe - tol); xx <= xe + tol; xx++) {
       if (xx < 0 || xx >= W) continue;
       var c = 0;
       for (var k = 3; k < 3 + hg; k++) { var yy = y0 + dir * k; if (yy >= 0 && yy < H && tv[yy * W + xx] > T) c++; }
-      if (c >= hg * 0.85) return true;
+      if (c >= hg * 0.85) {
+        if (!out) return true;
+        var busy = 0; // a letter touching the line end ('s' of "is", 't' of "the") has more print just beyond the end; a bracket's tick does not
+        for (var ox = 3; ox <= Math.max(6, Math.round(W * 0.008)); ox++) for (k = 3; k < 3 + hg; k++) { var qx = xx + out * ox, qy = y0 + dir * k; if (qx >= 0 && qx < W && qy >= 0 && qy < H && ink[qy * W + qx] > 60) busy++; }
+        if (busy < 4) return true;
+      }
     }
     return false;
   }
@@ -1015,7 +1028,7 @@ function findAnswerLines(rgba, W, H, opt) {
     }
     if (!isFrame && ((corner(l, l.x1, 1) && corner(l, l.x2, 1)) || (corner(l, l.x1, -1) && corner(l, l.x2, -1)))) isFrame = true;
     if (!isFrame && len < W * 0.06 && (corner(l, l.x1, 1) || corner(l, l.x2, 1) || corner(l, l.x1, -1) || corner(l, l.x2, -1))) isFrame = true; // short piece of a picture frame
-    if (!isFrame && len > W * 0.04 && ((tick(l, l.x1, 1) && tick(l, l.x2, 1)) || (tick(l, l.x1, -1) && tick(l, l.x2, -1)))) isFrame = true; // tree bracket
+    if (!isFrame && len > W * 0.04 && ((tick(l, l.x1, 1, -1) && tick(l, l.x2, 1, 1)) || (tick(l, l.x1, -1, -1) && tick(l, l.x2, -1, 1)))) isFrame = true; // tree bracket
     if (isFrame) { stats.frames++; frameLines.push(l); return false; }
     return true;
   });
@@ -3049,7 +3062,7 @@ window.addEventListener('resize', function () { closeMenus(); layout(); if (page
 $('bar').addEventListener('scroll', function () { if (Date.now() - menuT > 500) closeMenus(); }); // a menu just opened must not be closed by the toolbar settling
 
 /* start */
-window.WM = { S: S, makePdf: makePdf, makeDocx: makeDocx, convertFolder: convertFolder, cleanPixels: cleanPixels, detect: detect };
+window.WM = { S: S, makePdf: makePdf, makeDocx: makeDocx, convertFolder: convertFolder, cleanPixels: cleanPixels, detect: detect, pageCanvas: pageCanvas };
 if (MOBILE) document.body.classList.add('mobile');
 openDB().then(restore).then(function () { render(); }, function () { render(); });
 })();
