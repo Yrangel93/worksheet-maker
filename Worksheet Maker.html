@@ -258,6 +258,7 @@ body.test #stubar{display:flex}
 #stDlg select{height:40px;border:1px solid var(--line);border-radius:8px;font-size:15px}
 #nav select#zoom{min-width:112px;padding-right:22px}
 .menu .btn.main + .btn[data-menu]{margin-left:5px}
+@media (min-width:901px) and (max-width:1180px){#bar #bErase{margin-left:auto}}
 </style>
 </head>
 <body class="test">
@@ -1809,7 +1810,7 @@ function delSel() { var pg = page(); if (!S.sel.length) return; snap([pg]); pg.b
 
 /* ---------- erase area: wipe a part of the scan by hand ---------- */
 function eraseArea(pg, rc) {
-  var old = pg.blob;
+  var old = pg.blob, wasErase = S.erase;
   return pageCanvas(pg).then(function (c) {
     var x = c.getContext('2d'), W = c.width, H = c.height;
     var x0 = Math.round(rc.x * W), y0 = Math.round(rc.y * H), w = Math.max(1, Math.round(rc.w * W)), h = Math.max(1, Math.round(rc.h * H));
@@ -1828,7 +1829,7 @@ function eraseArea(pg, rc) {
     undo.push([{ id: pg.id, boxes: JSON.stringify(pg.boxes), blob: old }]);
     URL.revokeObjectURL(pg.url); pg.blob = blob; pg.url = URL.createObjectURL(blob);
     return putBlob(pg.id, blob);
-  }).then(function () { render(); save(); toast('Erased. Undo brings it back. Press "Find answer lines" again if the page changed a lot.'); });
+  }).then(function () { render(); save(); if (S.mode === 'test' && !S.erase && wasErase) setErase(true); toast('Erased. Undo brings it back. Press "Find answer lines" again if the page changed a lot.'); });
 }
 function setErase(on) {
   S.erase = !!on && S.mode === 'test' && !!page();
