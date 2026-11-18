@@ -1325,7 +1325,7 @@ function download(blob, name) {
   if (MOBILE && navigator.canShare) {
     try {
       var file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
-      if (navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: name }).catch(function (e) { if (e && e.name !== 'AbortError') plainDownload(blob, name); }); return; }
+      if (navigator.canShare({ files: [file] })) { navigator.share({ files: [file] }).catch(function (e) { if (e && e.name !== 'AbortError') plainDownload(blob, name); }); return; }
     } catch (e) {}
   }
   plainDownload(blob, name);
@@ -2682,7 +2682,7 @@ function exportShare() { // the system share sheet: WhatsApp, Mail, Zoom chat, A
     var name = baseName(d.name).replace(/ \((fillable|checked)\)$/, '') + (marked ? ' (checked).pdf' : ' (fillable).pdf');
     var file = new File([blob], name, { type: 'application/pdf' });
     if (!navigator.canShare({ files: [file] })) { plainDownload(blob, name); return toast('This device cannot share files from the browser, so the PDF was downloaded. Send it from your Downloads.', 7000); }
-    return ask('Ready to share', '"' + name + '" is ready. Press Share, then pick WhatsApp, Mail, Zoom or another app.', { ok: 'Share' }).then(function (ok) {
+    return ask('Ready to share', '"' + name + '" is ready. Press Share, then pick WhatsApp, Mail or another app. Zoom missing? On iPad/iPhone choose Save to Files, then in the Files app touch and hold the PDF → Share → Zoom.', { ok: 'Share' }).then(function (ok) {
       if (!ok) return;
       return navigator.share({ files: [file], title: name }).catch(function (e) { if (e && e.name !== 'AbortError') { plainDownload(blob, name); toast('Sharing did not open, so the PDF was downloaded instead.', 6000); } });
     });
