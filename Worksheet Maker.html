@@ -1710,7 +1710,7 @@ function renderProps() {
   $('bDel').disabled = $('bDup').disabled = !sel.length;
   $('bDel').textContent = sel.length > 1 ? 'Delete selected boxes' : 'Delete selected box';
   document.body.classList.toggle('hasSel', sel.length > 0 && S.mode === 'edit');
-  $('bErase').disabled = $('bAdd').disabled = !pg || S.mode === 'check';
+  $('bErase').disabled = $('bAdd').disabled = !pg;
 }
 function go(d, p) { S.d = d; S.p = p; S.sel = []; document.body.classList.remove('showSide'); render(); $('stage').scrollTop = 0; save(); }
 
@@ -2697,7 +2697,7 @@ $('bDup').onclick = function () {
   S.sel = sel.map(function (b) { var n = JSON.parse(JSON.stringify(b)); n.id = nid(); n.v = ''; n.auto = false; n.y = clamp(b.y + b.h * 1.4, 0, 1 - b.h); pg.boxes.push(n); return n.id; });
   render(); save();
 };
-$('bErase').onclick = function () { setErase(!S.erase); };
+$('bErase').onclick = function () { if (S.mode === 'check') { document.querySelector('#mode [data-mode="test"]').click(); setErase(true); return; } setErase(!S.erase); };
 $('checkbar').addEventListener('click', function (e) {
   var b = e.target.closest('[data-tool]'), sw = e.target.closest('[data-c]');
   if (b) setTool(b.dataset.tool);
@@ -2744,7 +2744,8 @@ $('ckUndo').onclick = doUndo;
 function showBoxes(on) { document.body.classList.toggle('showBoxes', !!on); $('ckEye').classList.toggle('on', !!on); $('ckEye').setAttribute('aria-pressed', on ? 'true' : 'false'); }
 $('ckEye').onclick = function () { showBoxes(!document.body.classList.contains('showBoxes')); };
 $('bAdd').onclick = function () {
-  var pg = page(); if (!pg || S.mode === 'check') return;
+  var pg = page(); if (!pg) return;
+  if (S.mode === 'check') document.querySelector('#mode [data-mode="test"]').click(); // boxes are edited in Student mode: switch there, press Teacher mode to go back to marking
   var lr = $('layer').getBoundingClientRect(), sr = $('stage').getBoundingClientRect();
   var cx = clamp(((sr.left + sr.right) / 2 - lr.left) / lr.width, 0.2, 0.8), cy = clamp(((Math.max(sr.top, 0) + Math.min(sr.bottom, window.innerHeight)) / 2 - lr.top) / lr.height, 0.03, 0.95);
   var b = { id: nid(), x: cx - 0.17, y: cy - 0.012, w: 0.34, h: 0.024, multi: false, fs: 0, v: '' };
