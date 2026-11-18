@@ -350,6 +350,7 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
   <div class="menu" id="mClear">
     <button class="btn" id="bAdd" title="Adds one new answer box in the middle of the screen">＋<span class="long2"> Add</span> Box</button><button class="btn" data-menu title="Delete or clear answer boxes">▾</button>
     <div class="pop">
+      <button class="item" id="bDup">Copy selected box</button>
       <button class="item" id="bDel">Delete selected box</button>
       <hr>
       <div class="lbl">Clear boxes (boxes with text stay)</div>
@@ -442,7 +443,7 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
   </section>
 </main>
 
-<div id="selbar"><button class="btn small danger" id="sbDel">Delete</button><button class="btn small main" id="sbDone">Done</button></div>
+<div id="selbar"><button class="btn small" id="sbDup">Copy</button><button class="btn small danger" id="sbDel">Delete</button><button class="btn small main" id="sbDone">Done</button></div>
 <div id="shade"></div>
 <div id="pager"><button class="btn small" id="pgPrev" aria-label="Previous page">◀</button><span id="pgInfo"></span><button class="btn small" id="pgNext" aria-label="Next page">▶</button></div>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -1748,7 +1749,8 @@ function renderProps() {
   var cc = one(boxCol);
   document.querySelectorAll('#tColors button').forEach(function (x) { x.classList.toggle('on', x.dataset.col === cc); x.disabled = !tgt.length; });
   $('tInfo').textContent = !pg ? '' : sel.length ? (sel.length === 1 ? 'Changes the selected box' : 'Changes ' + sel.length + ' selected boxes') : (n ? 'Changes all boxes on this page' : '');
-  $('bDel').disabled = !sel.length;
+  $('bDel').disabled = $('bDup').disabled = !sel.length;
+  $('bDup').textContent = sel.length > 1 ? 'Copy selected boxes' : 'Copy selected box';
   $('bDel').textContent = sel.length > 1 ? 'Delete selected boxes' : 'Delete selected box';
   document.body.classList.toggle('hasSel', sel.length > 0 && S.mode === 'edit');
   $('bErase').disabled = $('bAdd').disabled = !pg;
@@ -1848,6 +1850,12 @@ document.addEventListener('keydown', function (e) {
   var st = e.shiftKey ? 0.01 : 0.002, dx = e.key === 'ArrowLeft' ? -st : e.key === 'ArrowRight' ? st : 0, dy = e.key === 'ArrowUp' ? -st : e.key === 'ArrowDown' ? st : 0;
   if (dx || dy) { e.preventDefault(); snap([pg]); sel.forEach(function (b) { b.x = clamp(b.x + dx, 0, 1 - b.w); b.y = clamp(b.y + dy * pg.w / pg.h, 0, 1 - b.h); }); renderBoxes(); save(); }
 });
+function dupSel() {
+  var pg = page(), sel = selBoxes(); if (!sel.length) return; snap([pg]);
+  var dy = Math.max.apply(null, sel.map(function (b) { return b.h; })) + 0.006, ids = [];
+  sel.forEach(function (b) { var c = JSON.parse(JSON.stringify(b)); c.id = nid(); c.v = ''; delete c.auto; if (c.y + dy + c.h <= 1) c.y += dy; else c.x = Math.min(c.x + 0.02, 1 - c.w); pg.boxes.push(c); ids.push(c.id); });
+  S.sel = ids; render(); save();
+}
 function delSel() { var pg = page(); if (!S.sel.length) return; snap([pg]); pg.boxes = pg.boxes.filter(function (b) { return S.sel.indexOf(b.id) < 0; }); S.sel = []; render(); save(); }
 
 /* ---------- erase area: wipe a part of the scan by hand ---------- */
@@ -2832,7 +2840,7 @@ $('bStrFile').onclick = function () { straighten('file'); };
 $('bClean').onclick = function () { clean('page'); };
 $('bCleanFile').onclick = function () { clean('file'); };
 $('bUndo').onclick = doUndo; $('bRedo').onclick = doRedo;
-$('bDel').onclick = delSel;
+$('bDel').onclick = delSel; $('bDup').onclick = dupSel;
 $('bErase').onclick = function () { setErase(!S.erase); };
 $('checkbar').addEventListener('click', function (e) {
   var b = e.target.closest('[data-tool]'), sw = e.target.closest('[data-c]');
@@ -2893,7 +2901,7 @@ $('bAdd').onclick = function () {
 function drawer(which) { document.body.classList.toggle('showSide', which === 'side' && !document.body.classList.contains('showSide')); document.body.classList.toggle('showProps', which === 'props' && !document.body.classList.contains('showProps')); if (which !== 'side') document.body.classList.remove('showSide'); if (which !== 'props') document.body.classList.remove('showProps'); }
 $('bFiles').onclick = function () { drawer('side'); };
 $('shade').onclick = function () { drawer(''); };
-$('sbDel').onclick = function () { delSel(); };
+$('sbDel').onclick = function () { delSel(); }; $('sbDup').onclick = function () { dupSel(); };
 $('sbDone').onclick = function () { S.sel = []; render(); };
 function hasText(b) { return !!(b.v && String(b.v).trim()); }
 function clearBoxes(scope) { // only empty boxes go: a box with an answer in it is never cleared
@@ -2962,7 +2970,7 @@ $('xDocx').onclick = function () { closeMenus(); exportOne(wordKind()); };
 $('xCanva').onclick = function () { closeMenus(); exportCanva(); };
 $('xPdfAll').onclick = function () { closeMenus(); exportAll('pdf'); };
 $('xDocxAll').onclick = function () { closeMenus(); exportAll(wordKind()); };
-['xCanva', 'xJpg', 'bStr', 'bStrFile', 'bClean', 'bCleanFile', 'bDel', 'bClearPage', 'bClearFile', 'bClearTest'].forEach(function (id) { $(id).addEventListener('click', closeMenus); });
+['xCanva', 'xJpg', 'bStr', 'bStrFile', 'bClean', 'bCleanFile', 'bDel', 'bDup', 'bClearPage', 'bClearFile', 'bClearTest'].forEach(function (id) { $(id).addEventListener('click', closeMenus); });
 
 var menuT = 0;
 function closeMenus() {
