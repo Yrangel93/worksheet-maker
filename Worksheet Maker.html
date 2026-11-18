@@ -1158,6 +1158,17 @@ function findAnswerLines(rgba, W, H, opt) {
     if (last >= 0 && bx1 - last - 5 >= 0.6 * (bx1 - bx0)) { b.w = (bx1 - (last + 5)) / W; b.x = (last + 5) / W; }
   });
 
+  // the Student's and Teacher's name boxes sit one under the other: same left and right edge
+  (function () {
+    var top = boxes.filter(function (b) { return !b.cell && !b.k && !b.label && !b.gap && b.y < 0.2 && b.w > 0.3; }).sort(function (p, q) { return p.y - q.y; });
+    for (var a = 0; a + 1 < top.length; a++) {
+      var A = top[a], B = top[a + 1];
+      if (B.y - A.y > 0.05 || Math.abs(A.x - B.x) > 0.02 || Math.abs((A.x + A.w) - (B.x + B.w)) > 0.02) continue;
+      var nx = Math.max(A.x, B.x), nr = Math.min(A.x + A.w, B.x + B.w);
+      A.x = B.x = nx; A.w = B.w = nr - nx; a++;
+    }
+  })();
+
   function inEssay(nb) { var cx = nb.x + nb.w / 2, cy = nb.y + nb.h / 2; return frameRects.some(function (r) { return cx > r[0] && cx < r[1] && cy > r[2] && cy < r[3]; }); }
   // empty cells of a table (closed on all four sides, nothing printed inside, white or shaded) each get a box
   (function () {
