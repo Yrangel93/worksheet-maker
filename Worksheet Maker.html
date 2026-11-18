@@ -292,10 +292,8 @@ body.test #stubar{display:flex}
   <input type="file" id="dir" webkitdirectory multiple class="hide">
   <div class="sep"></div>
   <div class="menu" id="mFind">
-    <button class="btn main" id="bFind" title="Looks for the answer lines on this page and puts a box on each one">Find answer lines</button><button class="btn" data-menu title="More options">▾</button>
+    <button class="btn main" id="bFind" title="Looks for the answer lines on all pages of this file and puts a box on each one">Find answer lines</button><button class="btn" data-menu title="More options">▾</button>
     <div class="pop">
-      <button class="item" id="bFindFile">Find on all pages of this file</button>
-      <hr>
       <div class="lbl">Straighten (turn a crooked scan level)</div>
       <button class="item" id="bStr" title="Turns a crooked scan level. Your boxes move with the page.">Straighten — this page</button>
       <button class="item" id="bStrFile">Straighten all pages of this file</button>
@@ -2700,8 +2698,7 @@ $('bConvDir').onclick = function () { closeMenus(); dirMode = 'convert'; $('dir'
 var dirMode = 'open';
 $('dir').onchange = function () { var fl = Array.prototype.slice.call(this.files); this.value = ''; if (dirMode === 'convert') convertFolder(fl); else openFiles(fl.filter(usable)); };
 $('file').onchange = function () { openFiles(this.files); this.value = ''; };
-$('bFind').onclick = function () { findLines('page'); };
-$('bFindFile').onclick = function () { findLines('file'); };
+$('bFind').onclick = function () { findLines('file'); };
 $('bStr').onclick = function () { var pg = page(); if (pg && pg.cleaned) { busy('Bringing back the original scan…').then(function () { return uncleanPage(pg); }).then(function () { idle(); render(); save(); toast('Original scan is back.'); }); } else straighten('page'); };
 $('bStrFile').onclick = function () { straighten('file'); };
 $('bClean').onclick = function () { clean('page'); };
@@ -2842,7 +2839,7 @@ $('xDocx').onclick = function () { closeMenus(); exportOne(wordKind()); };
 $('xCanva').onclick = function () { closeMenus(); exportCanva(); };
 $('xPdfAll').onclick = function () { closeMenus(); exportAll('pdf'); };
 $('xDocxAll').onclick = function () { closeMenus(); exportAll(wordKind()); };
-['xCanva', 'bFindFile', 'bStr', 'bStrFile', 'bClean', 'bCleanFile', 'bDup', 'bDel', 'bClearPage', 'bClearFile', 'bClearTest'].forEach(function (id) { $(id).addEventListener('click', closeMenus); });
+['xCanva', 'bStr', 'bStrFile', 'bClean', 'bCleanFile', 'bDup', 'bDel', 'bClearPage', 'bClearFile', 'bClearTest'].forEach(function (id) { $(id).addEventListener('click', closeMenus); });
 
 var menuT = 0;
 function closeMenus() {
