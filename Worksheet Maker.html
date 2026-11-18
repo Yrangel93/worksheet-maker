@@ -260,7 +260,7 @@ body.test #stubar{display:flex}
 .menu .btn.main + .btn[data-menu]{margin-left:5px}
 body.check.erasing #layer{visibility:visible;pointer-events:auto}
 body.check.erasing #marks{pointer-events:none}
-#checkbar #bErase{margin-left:auto}
+#checkbar #ckUndo{margin-left:auto}
 #notes{position:absolute;inset:0;pointer-events:none}
 .note{position:absolute}
 .note textarea{width:100%;height:100%;box-sizing:border-box;margin:0;padding:2px;border:1.5px dashed #d97706;background:rgba(255,251,235,.55);resize:none;overflow:hidden;line-height:1.2;font-family:Helvetica,Arial,sans-serif;outline:0;pointer-events:auto;border-radius:2px}
@@ -380,6 +380,13 @@ body.check.erasing #marks{pointer-events:none}
 
 <div class="bar" id="checkbar">
   <button class="btn tool" data-tool="select" title="Click one of your marks (check, circle, arrow...) to move or delete it. Answer boxes are not moved with this.">Move mark</button>
+  <button class="btn danger" id="ckDel" title="Delete the mark you selected with Move mark">Delete mark</button>
+  <button class="btn danger" id="ckClear">Clear marks</button>
+  <div class="sep"></div>
+  <button class="btn tool" data-tool="pen" title="Draw freely">✎ Pencil</button>
+  <button class="btn tool" data-tool="hl" title="Highlight">▮ Highlighter</button>
+  <button class="btn tool" data-tool="erase" title="Click or drag over marks to rub them out">Eraser</button>
+  <div class="sep"></div>
   <button class="btn tool" data-tool="check" title="Click to place a check mark">✓ Check</button>
   <button class="btn tool" data-tool="arrow" title="Drag toward the thing you want to point at. A click gives a standard arrow.">➜ Arrow</button>
   <button class="btn tool" data-tool="oval" title="Drag around a word to circle it">◯ Circle</button>
@@ -388,19 +395,14 @@ body.check.erasing #marks{pointer-events:none}
   <button class="btn tool" data-tool="text" title="Click where you want to write a note">T Note</button>
   <button class="btn tool" data-tool="stamp" title="Click to place the stamp chosen on the right">Stamp</button>
   <select id="ckStamp" class="btn" title="Which stamp"></select>
-  <button class="btn tool" data-tool="pen" title="Draw freely">✎ Pencil</button>
-  <button class="btn tool" data-tool="hl" title="Highlight">▮ Highlighter</button>
   <div class="sep"></div>
   <span id="ckColors"></span>
   <select id="ckThick" class="btn" title="Thickness / size"><option value="0">Thin</option><option value="1" selected>Medium</option><option value="2">Thick</option></select>
   <div class="sep"></div>
-  <button class="btn" id="ckEye" aria-pressed="false" title="Show or hide the answer boxes while you mark">👁 View answer boxes</button>
   <button class="btn" id="ckUndo">↩ Undo</button>
   <button class="btn" id="ckRedo">Redo ↪</button>
-  <button class="btn tool" data-tool="erase" title="Click or drag over marks to rub them out">Eraser</button>
+  <button class="btn" id="ckEye" aria-pressed="false" title="Show or hide the answer boxes while you mark">👁 View answer boxes</button>
   <button class="btn" id="bErase" title="Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">Erase background</button>
-  <button class="btn danger" id="ckDel" title="Delete the mark you selected with Move">Delete mark</button>
-  <button class="btn danger" id="ckClear">Clear marks</button>
 </div>
 
 <main>
