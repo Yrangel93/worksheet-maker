@@ -258,7 +258,9 @@ body.test #stubar{display:flex}
 #stDlg select{height:40px;border:1px solid var(--line);border-radius:8px;font-size:15px}
 #nav select#zoom{min-width:112px;padding-right:22px}
 .menu .btn.main + .btn[data-menu]{margin-left:5px}
-@media (min-width:901px) and (max-width:1180px){#bar #bErase{margin-left:auto}}
+body.check.erasing #layer{visibility:visible;pointer-events:auto}
+body.check.erasing #marks{pointer-events:none}
+#checkbar #bErase{margin-left:auto}
 </style>
 </head>
 <body class="test">
@@ -312,11 +314,9 @@ body.test #stubar{display:flex}
     <button data-mode="test" class="on" title="Type in the boxes, and add, move or delete boxes">Student<span class="long"> mode</span></button>
     <button data-mode="check" title="Mark a worksheet: check marks, circles, notes, stamps, pencil, highlighter">Teacher<span class="long"> mode</span></button>
   </div>
-  <button class="btn" id="bAdd" title="Adds one new answer box in the middle of the screen">＋ Add box</button>
   <div class="menu" id="mClear">
-    <button class="btn" data-menu title="Change, duplicate, delete or clear answer boxes">Edit boxes ▾</button>
+    <button class="btn" id="bAdd" title="Adds one new answer box in the middle of the screen">＋ Add box</button><button class="btn" data-menu title="Delete or clear answer boxes">▾</button>
     <div class="pop">
-      <button class="item" id="bDup">Duplicate selected box</button>
       <button class="item" id="bDel">Delete selected box</button>
       <hr>
       <div class="lbl">Clear boxes (boxes with text stay)</div>
@@ -326,7 +326,6 @@ body.test #stubar{display:flex}
       <button class="item" id="bClearTest">Clear typed answers…</button>
     </div>
   </div>
-  <button class="btn" id="bErase" title="Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">Erase background</button>
   <button class="btn" id="bUndo" title="Undo (⌘Z)">↩ Undo</button>
   <button class="btn" id="bRedo" title="Redo (⇧⌘Z)">Redo ↪</button>
   <div class="sp" style="flex:1"></div>
@@ -390,6 +389,7 @@ body.test #stubar{display:flex}
   <button class="btn" id="ckUndo">↩ Undo</button>
   <button class="btn" id="ckRedo">Redo ↪</button>
   <button class="btn tool" data-tool="erase" title="Click or drag over marks to rub them out">Eraser</button>
+  <button class="btn" id="bErase" title="Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">Erase background</button>
   <button class="btn danger" id="ckDel" title="Delete the mark you selected with Move">Delete mark</button>
   <button class="btn danger" id="ckClear">Clear marks</button>
 </div>
@@ -413,7 +413,7 @@ body.test #stubar{display:flex}
   </section>
 </main>
 
-<div id="selbar"><button class="btn small danger" id="sbDel">Delete</button><button class="btn small" id="sbDup">Duplicate</button><button class="btn small main" id="sbDone">Done</button></div>
+<div id="selbar"><button class="btn small danger" id="sbDel">Delete</button><button class="btn small main" id="sbDone">Done</button></div>
 <div id="shade"></div>
 <div id="pager"><button class="btn small" id="pgPrev" aria-label="Previous page">◀</button><span id="pgInfo"></span><button class="btn small" id="pgNext" aria-label="Next page">▶</button></div>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -1719,7 +1719,7 @@ function renderProps() {
   var cc = one(boxCol);
   document.querySelectorAll('#tColors button').forEach(function (x) { x.classList.toggle('on', x.dataset.col === cc); x.disabled = !tgt.length; });
   $('tInfo').textContent = !pg ? '' : sel.length ? (sel.length === 1 ? 'Changes the selected box' : 'Changes ' + sel.length + ' selected boxes') : (n ? 'Changes all boxes on this page' : '');
-  $('bDel').disabled = $('bDup').disabled = !sel.length;
+  $('bDel').disabled = !sel.length;
   $('bDel').textContent = sel.length > 1 ? 'Delete selected boxes' : 'Delete selected box';
   document.body.classList.toggle('hasSel', sel.length > 0 && S.mode === 'edit');
   $('bErase').disabled = $('bAdd').disabled = !pg;
@@ -1741,7 +1741,7 @@ $('layer').addEventListener('pointerdown', function (e) {
       return;
     }
     if (el ? !(cl.contains('mv') || cl.contains('h')) : e.pointerType !== 'mouse') return;
-  } else if (S.mode !== 'test') return;
+  } else if (S.mode !== 'test' && !(S.mode === 'check' && S.erase)) return;
   if (S.erase) { // drag a rectangle over the part of the scan to wipe
     e.preventDefault(); $('layer').setPointerCapture(e.pointerId);
     drag = { type: 'erase', start: pt, moved: false };
@@ -1842,10 +1842,10 @@ function eraseArea(pg, rc) {
     undo.push([{ id: pg.id, boxes: JSON.stringify(pg.boxes), blob: old }]);
     URL.revokeObjectURL(pg.url); pg.blob = blob; pg.url = URL.createObjectURL(blob);
     return putBlob(pg.id, blob);
-  }).then(function () { render(); save(); if (S.mode === 'test' && !S.erase && wasErase) setErase(true); toast('Erased. Undo brings it back. Press "Find answer lines" again if the page changed a lot.'); });
+  }).then(function () { render(); save(); if (wasErase && !S.erase) setErase(true); toast('Erased. Undo brings it back. Press "Find answer lines" again if the page changed a lot.'); });
 }
 function setErase(on) {
-  S.erase = !!on && S.mode === 'test' && !!page();
+  S.erase = !!on && (S.mode === 'test' || S.mode === 'check') && !!page();
   document.body.classList.toggle('erasing', S.erase); $('bErase').classList.toggle('on', S.erase);
   if (S.erase) { S.sel = []; render(); toast('Erase is ON: drag over anything on the scan you want gone (a mark, a drawing). Press "Erase background" again when you finish.', 6000); }
 }
@@ -1918,7 +1918,7 @@ function renderMarks() {
   $('ckDel').disabled = !S.msel;
 }
 function setTool(t) {
-  CK.tool = t; if (t !== 'select') S.msel = null;
+  CK.tool = t; if (t !== 'select') S.msel = null; if (S.erase) setErase(false);
   document.querySelectorAll('#checkbar [data-tool]').forEach(function (b) { b.classList.toggle('on', b.dataset.tool === t); });
   var free = DRAGT.indexOf(t) >= 0 || t === 'erase';
   $('marks').style.touchAction = free ? 'none' : 'pan-x pan-y pinch-zoom';
@@ -2719,12 +2719,7 @@ $('bClean').onclick = function () { clean('page'); };
 $('bCleanFile').onclick = function () { clean('file'); };
 $('bUndo').onclick = doUndo; $('bRedo').onclick = doRedo;
 $('bDel').onclick = delSel;
-$('bDup').onclick = function () {
-  var pg = page(), sel = selBoxes(); if (!sel.length) return; snap([pg]);
-  S.sel = sel.map(function (b) { var n = JSON.parse(JSON.stringify(b)); n.id = nid(); n.v = ''; n.auto = false; n.y = clamp(b.y + b.h * 1.4, 0, 1 - b.h); pg.boxes.push(n); return n.id; });
-  render(); save();
-};
-$('bErase').onclick = function () { if (S.mode === 'check') { document.querySelector('#mode [data-mode="test"]').click(); setErase(true); return; } setErase(!S.erase); };
+$('bErase').onclick = function () { setErase(!S.erase); };
 $('checkbar').addEventListener('click', function (e) {
   var b = e.target.closest('[data-tool]'), sw = e.target.closest('[data-c]');
   if (b) setTool(b.dataset.tool);
@@ -2785,7 +2780,6 @@ function drawer(which) { document.body.classList.toggle('showSide', which === 's
 $('bFiles').onclick = function () { drawer('side'); };
 $('shade').onclick = function () { drawer(''); };
 $('sbDel').onclick = function () { delSel(); };
-$('sbDup').onclick = function () { $('bDup').click(); };
 $('sbDone').onclick = function () { S.sel = []; render(); };
 function hasText(b) { return !!(b.v && String(b.v).trim()); }
 function clearBoxes(scope) { // only empty boxes go: a box with an answer in it is never cleared
@@ -2853,7 +2847,7 @@ $('xDocx').onclick = function () { closeMenus(); exportOne(wordKind()); };
 $('xCanva').onclick = function () { closeMenus(); exportCanva(); };
 $('xPdfAll').onclick = function () { closeMenus(); exportAll('pdf'); };
 $('xDocxAll').onclick = function () { closeMenus(); exportAll(wordKind()); };
-['xCanva', 'bStr', 'bStrFile', 'bClean', 'bCleanFile', 'bDup', 'bDel', 'bClearPage', 'bClearFile', 'bClearTest'].forEach(function (id) { $(id).addEventListener('click', closeMenus); });
+['xCanva', 'bStr', 'bStrFile', 'bClean', 'bCleanFile', 'bDel', 'bClearPage', 'bClearFile', 'bClearTest'].forEach(function (id) { $(id).addEventListener('click', closeMenus); });
 
 var menuT = 0;
 function closeMenus() {
