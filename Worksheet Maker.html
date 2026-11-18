@@ -283,7 +283,17 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
 #ckColors{display:inline-flex;gap:4px}
 #checkbar #ckThick{width:54px}
 #ckColors .sw{width:22px;height:22px}
-@media (min-width:901px) and (max-width:1179px){#checkbar{flex-wrap:wrap}}
+@media (min-width:901px) and (max-width:1000px){#checkbar{flex-wrap:wrap}}
+@media (max-width:1180px){
+ #mode .long,.long2{display:none}
+ #bUndo,#bRedo{min-width:40px;font-size:17px}
+ #checkbar .btn{padding-left:7px;padding-right:7px}
+ #checkbar [data-tool=pen],#checkbar [data-tool=hl],#checkbar [data-tool=erase]{min-width:38px;font-size:16px}
+ #ckColors .sw{width:20px;height:20px}
+ #zoom{max-width:96px}
+}
+.short2{display:none}
+@media (max-width:1180px){.short2{display:inline}#pinfo{min-width:0!important;padding:0 4px}#nav #zoom{width:74px!important;min-width:0!important;max-width:74px}#bar{gap:5px}#bar .sep{margin:0}#nav{gap:4px}}
 </style>
 </head>
 <body class="test">
@@ -318,7 +328,7 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
   <input type="file" id="dir" webkitdirectory multiple class="hide">
   <div class="sep"></div>
   <div class="menu" id="mFind">
-    <button class="btn main" id="bFind" title="Looks for the answer lines on all pages of this file and puts a box on each one">Find answer lines</button><button class="btn" data-menu title="More options">▾</button>
+    <button class="btn main" id="bFind" title="Looks for the answer lines on all pages of this file and puts a box on each one">Find<span class="long2"> answer</span> lines</button><button class="btn" data-menu title="More options">▾</button>
     <div class="pop">
       <div class="lbl">Straighten (turn a crooked scan level)</div>
       <button class="item" id="bStr" title="Turns a crooked scan level. Your boxes move with the page.">Straighten — this page</button>
@@ -338,7 +348,7 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
     <button data-mode="check" title="Mark a worksheet: check marks, circles, notes, stamps, pencil, highlighter">Teacher<span class="long"> mode</span></button>
   </div>
   <div class="menu" id="mClear">
-    <button class="btn" id="bAdd" title="Adds one new answer box in the middle of the screen">＋ Add box</button><button class="btn" data-menu title="Delete or clear answer boxes">▾</button>
+    <button class="btn" id="bAdd" title="Adds one new answer box in the middle of the screen">＋<span class="long2"> Add</span> Box</button><button class="btn" data-menu title="Delete or clear answer boxes">▾</button>
     <div class="pop">
       <button class="item" id="bDel">Delete selected box</button>
       <hr>
@@ -349,15 +359,15 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
       <button class="item" id="bClearTest">Clear typed answers…</button>
     </div>
   </div>
-  <button class="btn" id="bUndo" title="Undo (⌘Z)">↩ Undo</button>
-  <button class="btn" id="bRedo" title="Redo (⇧⌘Z)">Redo ↪</button>
+  <button class="btn" id="bUndo" title="Undo (⌘Z)">↩<span class="long2"> Undo</span></button>
+  <button class="btn" id="bRedo" title="Redo (⇧⌘Z)"><span class="long2">Redo </span>↪</button>
   <div class="sp" style="flex:1"></div>
   <div class="sep" id="navSep"></div>
   <div id="nav">
     <button class="btn small" id="bPrev" title="Previous page" aria-label="Previous page">◀</button>
     <span id="pinfo">–</span>
     <button class="btn small" id="bNext" title="Next page" aria-label="Next page">▶</button>
-    <select id="zoom" class="btn small" title="Zoom"><option value="fit">Fit width</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.5">150%</option></select>
+    <select id="zoom" class="btn small" title="Zoom"><option value="fit">Fit</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.5">150%</option></select>
   </div>
   <div class="sep"></div>
   <div class="menu right" id="mExp">
@@ -397,9 +407,9 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
   <button class="btn tool" data-tool="select" title="Move mark: click one of your marks to move it (answer boxes are not moved)">↖ Move</button>
   <button class="btn danger" id="ckClear">Clear</button>
   <div class="sep"></div>
-  <button class="btn tool" data-tool="pen" title="Pencil: draw freely">✎ Pen</button>
-  <button class="btn tool" data-tool="hl" title="Highlighter">▮ Highlight</button>
-  <button class="btn tool" data-tool="erase" title="Eraser: click or drag over marks to rub them out">⌫ Eraser</button>
+  <button class="btn tool" data-tool="pen" title="Pencil: draw freely">✎ <span class="long2">Pen</span></button>
+  <button class="btn tool" data-tool="hl" title="Highlighter">▮ <span class="long2">Highlight</span></button>
+  <button class="btn tool" data-tool="erase" title="Eraser: click or drag over marks to rub them out">⌫ <span class="long2">Eraser</span></button>
   <button class="btn" id="bErase" title="Erase background: Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">Erase background</button>
   <div class="sep"></div>
   <button class="btn tool" data-tool="check" title="Check mark: click to place it">✓</button>
@@ -410,7 +420,7 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
   <div class="sep"></div>
   <span id="ckColors"></span>
   <select id="ckThick" class="btn" title="Thickness / size"><option value="0">S</option><option value="1" selected>M</option><option value="2">L</option></select>
-  <button class="btn" id="ckEye" aria-pressed="false" title="Show or hide the answer boxes while you mark">👁 Boxes</button>
+  <button class="btn" id="ckEye" aria-pressed="false" title="Show or hide the answer boxes while you mark">👁<span class="long2"> Boxes</span></button>
 </div>
 
 <main>
@@ -1674,7 +1684,7 @@ function render() {
   $('docs').innerHTML = h || '<p style="color:var(--mut);font-size:13px">No files open.</p>';
   document.body.classList.toggle('multi', has && (doc().pages.length > 1 || S.docs.length > 1));
   if (!has) { $('pinfo').textContent = '–'; renderProps(); return; }
-  $('pinfo').textContent = 'Page ' + (S.p + 1) + ' of ' + doc().pages.length; $('pgInfo').textContent = (S.p + 1) + ' / ' + doc().pages.length;
+  $('pinfo').innerHTML = '<span class="long2">Page </span>' + (S.p + 1) + '<span class="long2"> of </span><span class="short2"> / </span>' + doc().pages.length; $('pgInfo').textContent = (S.p + 1) + ' / ' + doc().pages.length;
   $('bPrev').disabled = S.p === 0 && S.d === 0; $('bNext').disabled = S.p === doc().pages.length - 1 && S.d === S.docs.length - 1;
   $('pgPrev').disabled = $('bPrev').disabled; $('pgNext').disabled = $('bNext').disabled;
   if ($('pimg').getAttribute('src') !== pg.url) $('pimg').src = pg.url;
