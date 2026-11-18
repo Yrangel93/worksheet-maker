@@ -328,6 +328,7 @@ body.test #stubar{display:flex}
   </div>
   <button class="btn" id="bErase" title="Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">Erase background</button>
   <button class="btn" id="bUndo" title="Undo (⌘Z)">↩ Undo</button>
+  <button class="btn" id="bRedo" title="Redo (⇧⌘Z)">Redo ↪</button>
   <div class="sp" style="flex:1"></div>
   <div class="sep" id="navSep"></div>
   <div id="nav">
@@ -387,6 +388,7 @@ body.test #stubar{display:flex}
   <div class="sep"></div>
   <button class="btn" id="ckEye" aria-pressed="false" title="Show or hide the answer boxes while you mark">👁 View answer boxes</button>
   <button class="btn" id="ckUndo">↩ Undo</button>
+  <button class="btn" id="ckRedo">Redo ↪</button>
   <button class="btn tool" data-tool="erase" title="Click or drag over marks to rub them out">Eraser</button>
   <button class="btn danger" id="ckDel" title="Delete the mark you selected with Move">Delete mark</button>
   <button class="btn danger" id="ckClear">Clear marks</button>
@@ -1383,14 +1385,24 @@ function snap(pages) { // call BEFORE changing boxes
   undo.push(pages.map(function (p) { return { id: p.id, boxes: JSON.stringify(p.boxes), marks: JSON.stringify(p.marks || []) }; }));
   if (undo.length > 150) undo.shift();
 }
-function doUndo() {
-  var u = undo.pop(); if (!u) return toast('Nothing to undo.');
+var redo = [];
+function curState(u) { return u.map(function (e) { var p = findPage(e.id); if (!p) return null; var s = { id: p.id, boxes: JSON.stringify(p.boxes) }; if (e.marks != null) s.marks = JSON.stringify(p.marks || []); if (e.blob) s.blob = p.blob; return s; }).filter(Boolean); }
+function applyState(u) {
   u.forEach(function (e) {
     var p = findPage(e.id); if (!p) return;
     p.boxes = JSON.parse(e.boxes); if (e.marks) p.marks = JSON.parse(e.marks);
     if (e.blob) { URL.revokeObjectURL(p.url); p.blob = e.blob; p.url = URL.createObjectURL(e.blob); putBlob(p.id, e.blob); }
   });
   S.sel = []; S.msel = null; render(); save();
+}
+function doUndo() {
+  var u = undo.pop(); if (!u) return toast('Nothing to undo.');
+  redo.push({ len: undo.length, s: curState(u) }); if (redo.length > 150) redo.shift();
+  applyState(u);
+}
+function doRedo() {
+  var r = redo.pop(); if (!r || r.len !== undo.length) { redo = []; return toast('Nothing to redo.'); }
+  undo.push(curState(r.s)); applyState(r.s);
 }
 
 /* ---------- opening files ---------- */
@@ -1627,7 +1639,7 @@ function openFiles(list) {
 function render() {
   var pg = page(), has = !!pg;
   $('empty').classList.toggle('hide', has); $('pagewrap').classList.toggle('hide', !has);
-  ['bFind', 'bClean', 'bStr', 'bUndo', 'bPrev', 'bNext', 'bClearTest'].forEach(function (id) { $(id).disabled = !has; });
+  ['bFind', 'bClean', 'bStr', 'bUndo', 'bRedo', 'bPrev', 'bNext', 'bClearTest'].forEach(function (id) { $(id).disabled = !has; });
   document.querySelectorAll('#bar [data-menu]').forEach(function (b) { if (!b.closest('#mOpen')) b.disabled = !has; });
   // file list
   var h = '';
@@ -1793,7 +1805,8 @@ $('layer').addEventListener('pointercancel', endDrag);
 document.addEventListener('keydown', function (e) {
   if ($('modal').classList.contains('on')) return;
   var tag = (e.target.tagName || '').toLowerCase(), typing = tag === 'input' || tag === 'textarea' || tag === 'select';
-  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !(typing && S.mode === 'test')) { e.preventDefault(); doUndo(); return; }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !(typing && S.mode === 'test')) { e.preventDefault(); if (e.shiftKey) doRedo(); else doUndo(); return; }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y' && !(typing && S.mode === 'test')) { e.preventDefault(); doRedo(); return; }
   if (!typing && S.mode === 'check' && S.msel && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); delMark(); return; }
   if (typing || !page()) return;
   if (e.key === 'PageDown') $('bNext').click(); else if (e.key === 'PageUp') $('bPrev').click();
@@ -2704,7 +2717,7 @@ $('bStr').onclick = function () { var pg = page(); if (pg && pg.cleaned) { busy(
 $('bStrFile').onclick = function () { straighten('file'); };
 $('bClean').onclick = function () { clean('page'); };
 $('bCleanFile').onclick = function () { clean('file'); };
-$('bUndo').onclick = doUndo;
+$('bUndo').onclick = doUndo; $('bRedo').onclick = doRedo;
 $('bDel').onclick = delSel;
 $('bDup').onclick = function () {
   var pg = page(), sel = selBoxes(); if (!sel.length) return; snap([pg]);
@@ -2754,7 +2767,7 @@ $('ckThick').onchange = function () { // also resizes the mark you have selected
 };
 $('ckDel').onclick = delMark;
 $('ckClear').onclick = function () { var pg = page(); if (!pg || !(pg.marks || []).length) return toast('There are no marks on this page.'); snap([pg]); pg.marks = []; S.msel = null; renderMarks(); save(); toast('All marks on this page removed. (Undo brings them back.)'); };
-$('ckUndo').onclick = doUndo;
+$('ckUndo').onclick = doUndo; $('ckRedo').onclick = doRedo;
 function showBoxes(on) { document.body.classList.toggle('showBoxes', !!on); $('ckEye').classList.toggle('on', !!on); $('ckEye').setAttribute('aria-pressed', on ? 'true' : 'false'); }
 $('ckEye').onclick = function () { showBoxes(!document.body.classList.contains('showBoxes')); };
 $('bAdd').onclick = function () {
