@@ -337,6 +337,7 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
       <div class="lbl">Clean scan (white background + straighten)</div>
       <button class="item" id="bClean" title="Makes the gray, speckled background white and straightens the page">Clean scan — this page</button>
       <button class="item" id="bCleanFile">Clean all pages of this file</button>
+      <div class="row"><span style="font-size:13px">Strength</span><select id="cleanLvl" style="flex:1"><option value="0">Light (keeps faint print)</option><option value="1" selected>Normal</option><option value="2">Strong (whiter paper)</option></select></div>
       <hr>
       <div class="lbl">How many lines to find</div>
       <div class="row"><select id="sens" style="flex:1"><option value="0">Fewer (only clear lines)</option><option value="1" selected>Normal</option><option value="2">More (also short or faint lines)</option></select></div>
@@ -1690,7 +1691,7 @@ function render() {
   $('pgPrev').disabled = $('bPrev').disabled; $('pgNext').disabled = $('bNext').disabled;
   if ($('pimg').getAttribute('src') !== pg.url) $('pimg').src = pg.url;
   $('pagewrap').style.aspectRatio = pg.w + ' / ' + pg.h;
-  $('bClean').textContent = pg.cleaned ? 'Undo clean of this page' : 'Clean scan — this page'; $('bStr').textContent = pg.cleaned ? 'Undo straighten of this page' : 'Straighten — this page';
+  $('bClean').textContent = pg.cleaned && !pg.straightOnly ? 'Undo clean of this page' : 'Clean scan — this page'; $('bStr').textContent = pg.cleaned ? 'Undo straighten of this page' : 'Straighten — this page';
   layout(); renderBoxes(); renderMarks(); renderProps();
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -2124,7 +2125,8 @@ function cleanPixels(d, W, H, frames) {
   for (i = 0; i < 128; i++) if (hist[i] > best) { best = hist[i]; paper = i; }
   for (i = 255; i >= 0; i--) { c += hist[i]; if (c >= N * 0.005) { top = i; break; } }
   var range = Math.max(40, top - paper);
-  var lo = paper + Math.max(16, 0.13 * range), hi = lo + Math.max(22, 0.17 * range), strong = paper + 0.55 * range;
+  var lvl = cleanPixels.level == null ? 1 : cleanPixels.level; // 0 light, 1 normal, 2 strong
+  var lo = paper + [Math.max(9, 0.07 * range), Math.max(16, 0.13 * range), Math.max(24, 0.2 * range)][lvl], hi = lo + Math.max(22, 0.17 * range), strong = paper + 0.55 * range;
   // big pale watermark letter (the "A") and the big picture inside a writing frame: erased, but thin lines, text and frames stay.
   // A shape counts only if it is thick: a window about 2% of the page width must be filled with it.
   function erodeM(M, r, x0, y0, x1, y1, frac) { // 1 where (nearly) the whole window is set (only inside the given rectangle)
@@ -2148,7 +2150,7 @@ function cleanPixels(d, W, H, frames) {
     return out;
   }
   function whiten(q) { ink[q] = 0; d[q * 4] = d[q * 4 + 1] = d[q * 4 + 2] = 255; }
-  (function () { // 1. the pale watermark letter
+  if (lvl > 0) (function () { // 1. the pale watermark letter
     var r = Math.max(6, Math.round(W * 0.010)), M1 = new Uint8Array(N), k, bl = new Uint8Array(N), br = 3, W1 = W + 1, II = new Int32Array(W1 * (H + 1)), xx, yy;
     for (yy = 0; yy < H; yy++) { var rs0 = 0; for (xx = 0; xx < W; xx++) { rs0 += ink[yy * W + xx]; II[(yy + 1) * W1 + xx + 1] = II[yy * W1 + xx + 1] + rs0; } }
     for (yy = 0; yy < H; yy++) for (xx = 0; xx < W; xx++) { // smoothed ink: a speckled tint reads as one even tint
@@ -2187,7 +2189,7 @@ function cleanPixels(d, W, H, frames) {
     if (ux1 - ux0 >= 0.3 * W && uy1 - uy0 >= 0.3 * H) pieces.forEach(function (list) { for (var j = 0; j < list.length; j++) if (M2[list[j]] && ink[list[j]] <= 1.55 * T) whiten(list[j]); }); // big enough to be a watermark, not a picture
   })();
   // 1b. the cartoon pencil printed over some writing lines: a thick blob that answer lines run under. Erased, the lines are redrawn.
-  (function () {
+  if (lvl > 0) (function () {
     var r = Math.max(5, Math.round(W * 0.0045)), M3 = new Uint8Array(N), k, y, x;
     for (k = 0; k < N; k++) M3[k] = ink[k] > 55 ? 1 : 0;
     var y0c = Math.round(H * 0.14), C3 = erodeM(M3, r, 0, y0c, W, H, 0.9);
@@ -2250,7 +2252,7 @@ function cleanPixels(d, W, H, frames) {
       });
     }
   })();
-  (frames || []).forEach(function (f) { // 2. a picture drawn inside a writing frame (frames are the empty boxes for long answers)
+  (lvl > 0 ? frames || [] : []).forEach(function (f) { // 2. a picture drawn inside a writing frame (frames are the empty boxes for long answers)
     var m = Math.max(8, Math.round(W * 0.006)), x0 = Math.round(f[0] * W) + m, x1 = Math.round(f[1] * W) - m, y0 = Math.round(f[2] * H) + m, y1 = Math.round(f[3] * H) - m, r = Math.max(5, Math.round(W * 0.0045));
     if (x1 - x0 < 6 * r || y1 - y0 < 6 * r) return;
     var x, y, keep = new Uint8Array(H), need = 0.6 * (x1 - x0);
@@ -2372,6 +2374,15 @@ function cleanPixels(d, W, H, frames) {
     var near = ig[(y1 + 1) * W1 + x1 + 1] - ig[y0 * W1 + x1 + 1] - ig[(y1 + 1) * W1 + x0] + ig[y0 * W1 + x0];
     if (!near) for (var k = 0; k < px.length; k++) kill[px[k]] = 1;
   });
+  (function () { // the scanner's border line right at the edge of the page: a thin dark rule along most of an edge
+    [[0, 1, true], [W - 1, -1, true], [0, 1, false], [H - 1, -1, false]].forEach(function (e) {
+      var vert = e[2], L = vert ? H : W, D = Math.round((vert ? W : H) * 0.015), deep = -1, a, b;
+      var at = function (along, dd) { var c = e[0] + e[1] * dd; return vert ? along * W + c : c * W + along; };
+      for (b = 0; b <= D; b++) { var cn = 0; for (a = 0; a < L; a++) if (ink[at(a, b)] > lo) cn++; if (cn >= L * 0.45) deep = b; else if (b > deep + 2) break; }
+      if (deep < 0) return;
+      for (a = 0; a < L; a++) for (b = 0; b <= D; b++) { var q = at(a, b); if (b > deep + 1 && ink[q] <= lo) break; kill[q] = 1; }
+    });
+  })();
   for (i = 0; i < N; i++) {
     var v = ink[i], j = i * 4;
     if (v <= lo || kill[i]) { d[j] = d[j + 1] = d[j + 2] = 255; }
@@ -2439,7 +2450,8 @@ function straighten(scope) {
 }
 function clean(scope) {
   var pages = allPages(scope), i = 0, n = 0;
-  if (scope === 'page' && page().cleaned) {
+  cleanPixels.level = +$('cleanLvl').value;
+  if (scope === 'page' && page().cleaned && !page().straightOnly) {
     return busy('Bringing back the original scan…').then(function () { return uncleanPage(page()); }).then(function () { idle(); render(); save(); toast('Original scan is back.'); });
   }
   snap(pages);
@@ -2839,6 +2851,11 @@ $('bStr').onclick = function () { var pg = page(); if (pg && pg.cleaned) { busy(
 $('bStrFile').onclick = function () { straighten('file'); };
 $('bClean').onclick = function () { clean('page'); };
 $('bCleanFile').onclick = function () { clean('file'); };
+$('cleanLvl').onchange = function () { // re-clean the shown page at the new strength
+  var pg = page(); if (!pg || !pg.cleaned || pg.straightOnly) return;
+  cleanPixels.level = +this.value; closeMenus();
+  busy('Cleaning again…').then(function () { return uncleanPage(pg); }).then(function () { return cleanPage(pg); }).then(function () { idle(); render(); save(); toast('Cleaned again: ' + ['light', 'normal', 'strong'][cleanPixels.level] + '.'); }, function (e) { console.error(e); idle(); });
+};
 $('bUndo').onclick = doUndo; $('bRedo').onclick = doRedo;
 $('bDel').onclick = delSel; $('bDup').onclick = dupSel;
 $('bErase').onclick = function () { setErase(!S.erase); };
