@@ -359,6 +359,7 @@ body.check.erasing #marks{pointer-events:none}
       <div class="lbl">PDF (fillable boxes and teacher marks)</div>
       <button class="item" id="xPdf"><b>PDF</b> — this file</button>
       <button class="item" id="xShare"><b>Share</b> (WhatsApp, Mail, Zoom…) — this file</button>
+      <button class="item" id="xJpg"><b>JPG picture</b> (with marks) — this file</button>
       <button class="item" id="xCanva"><b>Canva</b> (editable PDF) — this file</button>
       <button class="item" id="xPdfAll"><b>PDF</b> — all open files (one ZIP)</button>
       <hr>
@@ -2687,6 +2688,41 @@ function exportShare() { // the system share sheet: WhatsApp, Mail, Zoom chat, A
     });
   }, function (e) { console.error(e); idle(); ask('Export did not work', String(e && e.message || e)); });
 }
+function exportJpg() {
+  var d = doc(); if (!d) return;
+  var keep = $('keepTest').checked, files = [], i = 0, base = baseName(d.name).replace(/ \((fillable|checked)\)$/, '');
+  return busy('Making the pictures…').then(function step() {
+    if (i >= d.pages.length) return;
+    var pg = d.pages[i++];
+    return pageCanvas(pg).then(function (c) {
+      var x = c.getContext('2d'), sc = c.width / pg.ptW;
+      (pg.marks || []).forEach(function (m) {
+        var sh = markShapes(m, pg, screenMeasure);
+        sh.paths.forEach(function (p) {
+          x.save(); x.scale(sc, sc); var P2 = new Path2D(p.d);
+          if (p.fill) { x.globalAlpha = p.fop == null ? 1 : p.fop; x.fillStyle = p.fill; x.fill(P2); }
+          x.globalAlpha = p.op || 1; x.strokeStyle = p.stroke; x.lineWidth = p.w; x.lineCap = 'round'; x.lineJoin = 'round'; x.stroke(P2); x.restore();
+        });
+        sh.texts.forEach(function (t) { x.font = (t.bold ? 'bold ' : '') + (t.size * sc) + 'px Helvetica, Arial, "Apple Color Emoji", sans-serif'; x.fillStyle = t.color; x.textBaseline = 'alphabetic'; x.fillText(t.str, t.x * sc, t.y * sc); });
+      });
+      if (keep) pg.boxes.forEach(function (b) {
+        if (!b.v) return;
+        var sz = fontPt(b, pg), px = sz * sc; x.font = (b.bold ? 'bold ' : '') + px + 'px ' + FAMS[boxFam(b)][0]; x.fillStyle = boxCol(b); x.textBaseline = 'alphabetic';
+        var bx = b.x * c.width, bw = b.w * c.width, by = b.y * c.height, bh = b.h * c.height;
+        var lines = wrapText(b.v, bw - 6 * sc, px, function (s) { return x.measureText(s).width; });
+        lines.forEach(function (ln, k) { x.fillText(ln, bx + 3 * sc, b.multi || lines.length > 1 ? by + px * (1 + 1.2 * k) : by + (bh + px * 0.7) / 2); });
+      });
+      return canvasBlob(c, 0.92);
+    }).then(function (blob) { return blob.arrayBuffer(); }).then(function (ab) {
+      files.push({ name: base + (d.pages.length > 1 ? ' page ' + i : '') + '.jpg', data: new Uint8Array(ab) });
+    }).then(function () { return new Promise(function (r) { setTimeout(r, 0); }); }).then(step);
+  }).then(function () {
+    idle();
+    if (files.length === 1) download(new Blob([files[0].data], { type: 'image/jpeg' }), files[0].name);
+    else download(new Blob([zip(files)], { type: 'application/zip' }), base + ' (JPG pages).zip');
+    toast('Done. ' + (files.length === 1 ? 'Your picture is in Downloads.' : files.length + ' pictures are inside one ZIP in Downloads.'));
+  }, function (e) { console.error(e); idle(); ask('Export did not work', String(e && e.message || e)); });
+}
 function exportCanva() {
   var d = doc(); if (!d) return;
   return busy('Making the Canva file…').then(function () { return makePdf(d, true); }).then(function (blob) {
@@ -2899,13 +2935,14 @@ $('bNew').onclick = function () {
   });
 };
 $('xPdf').onclick = function () { closeMenus(); exportOne('pdf'); };
+$('xJpg').onclick = function () { closeMenus(); exportJpg(); };
 $('xShare').onclick = function () { closeMenus(); exportShare(); };
 function wordKind() { var r = document.querySelector('input[name=wordFor]:checked'); return r ? r.value : 'docx'; }
 $('xDocx').onclick = function () { closeMenus(); exportOne(wordKind()); };
 $('xCanva').onclick = function () { closeMenus(); exportCanva(); };
 $('xPdfAll').onclick = function () { closeMenus(); exportAll('pdf'); };
 $('xDocxAll').onclick = function () { closeMenus(); exportAll(wordKind()); };
-['xCanva', 'bStr', 'bStrFile', 'bClean', 'bCleanFile', 'bDel', 'bClearPage', 'bClearFile', 'bClearTest'].forEach(function (id) { $(id).addEventListener('click', closeMenus); });
+['xCanva', 'xJpg', 'bStr', 'bStrFile', 'bClean', 'bCleanFile', 'bDel', 'bClearPage', 'bClearFile', 'bClearTest'].forEach(function (id) { $(id).addEventListener('click', closeMenus); });
 
 var menuT = 0;
 function closeMenus() {
