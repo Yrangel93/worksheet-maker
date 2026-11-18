@@ -261,6 +261,15 @@ body.test #stubar{display:flex}
 body.check.erasing #layer{visibility:visible;pointer-events:auto}
 body.check.erasing #marks{pointer-events:none}
 #checkbar #bErase{margin-left:auto}
+#notes{position:absolute;inset:0;pointer-events:none}
+.note{position:absolute}
+.note textarea{width:100%;height:100%;box-sizing:border-box;margin:0;padding:2px;border:1.5px dashed #d97706;background:rgba(255,251,235,.55);resize:none;overflow:hidden;line-height:1.2;font-family:Helvetica,Arial,sans-serif;outline:0;pointer-events:auto;border-radius:2px}
+.note.act textarea{background:rgba(255,255,255,.85);border-style:solid}
+.note .mv,.note .rm{position:absolute;top:-24px;width:24px;height:22px;line-height:20px;text-align:center;background:#fff;border:1.5px solid var(--g5);border-radius:6px 6px 0 0;font-size:14px;color:var(--g7);user-select:none;-webkit-user-select:none;z-index:3;pointer-events:auto;touch-action:none}
+.note .mv{left:-1.5px;cursor:move}
+.note .rm{left:26px;cursor:pointer;color:var(--red)}
+.note .h{position:absolute;right:-11px;bottom:-11px;width:22px;height:22px;border-radius:11px;background:#fff;border:2px solid var(--g5);cursor:nwse-resize;touch-action:none;pointer-events:auto;z-index:3}
+@media (pointer:coarse){.note .mv,.note .rm{width:34px;height:30px;top:-32px;line-height:28px;font-size:18px}.note .rm{left:38px}.note .h{width:28px;height:28px;right:-14px;bottom:-14px;border-radius:14px}}
 </style>
 </head>
 <body class="test">
@@ -409,7 +418,7 @@ body.check.erasing #marks{pointer-events:none}
         <li>When a student sends it back: open it, press <b>Teacher mode</b>, mark it, export.</li>
       </ol>
     </div>
-    <div id="pagewrap" class="hide"><img id="pimg" alt=""><div id="layer"></div><svg id="marks" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg></div>
+    <div id="pagewrap" class="hide"><img id="pimg" alt=""><div id="layer"></div><svg id="marks" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"></svg><div id="notes"></div></div>
   </section>
 </main>
 
@@ -1860,6 +1869,18 @@ var STAMP_PT = [9, 13, 19], PEN_W = [1.2, 2.5, 5], HL_W = [9, 14, 22], SIZE = [1
 var meas2 = document.createElement('canvas').getContext('2d');
 function screenMeasure(str, size, bold) { meas2.font = (bold ? 'bold ' : '') + size + 'px Helvetica, Arial, sans-serif'; return meas2.measureText(str).width; }
 /* One description of every mark, used for the screen (SVG) and for the exported PDF. Units: PDF points, y down. */
+function wrapText(str, maxW, size, measure) {
+  var out = [];
+  String(str).split('\n').forEach(function (para) {
+    var words = para.split(' '), line = '';
+    words.forEach(function (w) {
+      var t = line ? line + ' ' + w : w;
+      if (line && measure(t, size, false) > maxW) { out.push(line); line = w; } else line = t;
+    });
+    out.push(line);
+  });
+  return out;
+}
 function markShapes(m, pg, measure) {
   var X = m.x * pg.ptW, Y = m.y * pg.ptH, out = { paths: [], texts: [] }, s = m.s || 22, k;
   function f(n) { return Math.round(n * 100) / 100; }
@@ -1888,6 +1909,8 @@ function markShapes(m, pg, measure) {
     for (k = 0; k < m.pts.length; k++) d += (k ? ' L' : 'M') + f(m.pts[k][0] * pg.ptW) + ' ' + f(m.pts[k][1] * pg.ptH);
     if (m.pts.length === 1) d += ' L' + f(m.pts[0][0] * pg.ptW + 0.1) + ' ' + f(m.pts[0][1] * pg.ptH);
     out.paths.push({ d: d, stroke: m.c, w: m.lw, op: m.t === 'hl' ? 0.38 : 1 });
+  } else if (m.t === 'text' && m.box) {
+    wrapText(m.str || '', m.w * pg.ptW - 6, s, measure).forEach(function (ln, i) { if (ln) out.texts.push({ x: X + 3, y: Y + 2 + s * 0.95 + i * s * 1.2, str: ln, size: s, color: m.c, bold: false }); });
   } else if (m.t === 'text') out.texts.push({ x: X, y: Y, str: m.str, size: s, color: m.c, bold: false });
   else if (m.t === 'stamp') {
     var size = m.s || 12, tw = measure(m.str, size, true), w = tw + 14, hh = size + 10;
@@ -1907,7 +1930,7 @@ function renderMarks() {
       html += '<path d="' + p.d + '" fill="' + (p.fill || 'none') + '"' + (p.fill ? ' fill-opacity="' + p.fop + '"' : '') + ' stroke="' + p.stroke + '" stroke-width="' + p.w + '" stroke-linecap="round" stroke-linejoin="round"' + (p.op && p.op < 1 ? ' stroke-opacity="' + p.op + '"' : '') + '/>';
       html += '<path class="hit" d="' + p.d + '" fill="' + (p.fill ? 'transparent' : 'none') + '" stroke="transparent" stroke-width="' + Math.max(p.w, 12) + '"/>';
     });
-    sh.texts.forEach(function (t) { html += '<text x="' + t.x + '" y="' + t.y + '" font-family="Helvetica, Arial, sans-serif" font-size="' + t.size + '"' + (t.bold ? ' font-weight="bold"' : '') + ' fill="' + t.color + '">' + esc(t.str) + '</text>'; });
+    if (!(m.box && S.mode === 'check')) sh.texts.forEach(function (t) { html += '<text x="' + t.x + '" y="' + t.y + '" font-family="Helvetica, Arial, sans-serif" font-size="' + t.size + '"' + (t.bold ? ' font-weight="bold"' : '') + ' fill="' + t.color + '">' + esc(t.str) + '</text>'; });
     html += '</g>';
   });
   svg.innerHTML = html;
@@ -1916,6 +1939,36 @@ function renderMarks() {
     if (g) { var bb = g.getBBox(), r = document.createElementNS('http://www.w3.org/2000/svg', 'rect'); r.setAttribute('x', bb.x - 3); r.setAttribute('y', bb.y - 3); r.setAttribute('width', bb.width + 6); r.setAttribute('height', bb.height + 6); r.setAttribute('class', 'msel'); svg.appendChild(r); } else S.msel = null;
   }
   $('ckDel').disabled = !S.msel;
+  renderNotes();
+}
+function renderNotes() {
+  var L = $('notes'), pg = page(); L.innerHTML = ''; if (!pg || S.mode !== 'check') return;
+  var k = pxPerPt();
+  (pg.marks || []).forEach(function (m) {
+    if (!(m.t === 'text' && m.box)) return;
+    var el = document.createElement('div'); el.className = 'note'; el.dataset.id = m.id; place(el, m);
+    var ta = document.createElement('textarea'); ta.value = m.str || ''; ta.spellcheck = false; ta.style.fontSize = ((m.s || 14) * k) + 'px'; ta.style.color = m.c;
+    var pre = null;
+    ta.onfocus = function () { pre = JSON.stringify(pg.marks); el.classList.add('act'); };
+    ta.oninput = function () { if (pre) { undo.push([{ id: pg.id, boxes: JSON.stringify(pg.boxes), marks: pre }]); pre = null; } m.str = ta.value; save(); };
+    ta.onblur = function () { el.classList.remove('act'); if (!m.str || !m.str.trim()) { pg.marks = pg.marks.filter(function (q) { return q !== m; }); renderMarks(); } };
+    el.appendChild(ta);
+    ['mv', 'rm', 'h'].forEach(function (cl) {
+      var q = document.createElement('div'); q.className = cl; q.textContent = cl === 'mv' ? '⠿' : cl === 'rm' ? '×' : ''; q.title = cl === 'mv' ? 'Drag to move' : cl === 'rm' ? 'Delete this note' : 'Drag to resize'; el.appendChild(q);
+      if (cl === 'rm') q.onpointerdown = function (e) { e.preventDefault(); snap([pg]); pg.marks = pg.marks.filter(function (z) { return z !== m; }); renderMarks(); save(); };
+      else q.onpointerdown = function (e) {
+        e.preventDefault(); q.setPointerCapture(e.pointerId);
+        var r = $('marks').getBoundingClientRect(), sx = e.clientX, sy = e.clientY, o = { x: m.x, y: m.y, w: m.w, h: m.h }, before = JSON.stringify(pg.marks), moved = false;
+        q.onpointermove = function (e2) {
+          var dx = (e2.clientX - sx) / r.width, dy = (e2.clientY - sy) / r.height; moved = true;
+          if (cl === 'mv') { m.x = clamp(o.x + dx, 0, 1 - m.w); m.y = clamp(o.y + dy, 0, 1 - m.h); } else { m.w = clamp(o.w + dx, 0.06, 1 - m.x); m.h = clamp(o.h + dy, 0.03, 1 - m.y); }
+          place(el, m);
+        };
+        q.onpointerup = q.onpointercancel = function () { q.onpointermove = q.onpointerup = q.onpointercancel = null; if (moved) { undo.push([{ id: pg.id, boxes: JSON.stringify(pg.boxes), marks: before }]); save(); } };
+      };
+    });
+    L.appendChild(el);
+  });
 }
 function setTool(t) {
   CK.tool = t; if (t !== 'select') S.msel = null; if (S.erase) setErase(false);
@@ -1986,7 +2039,10 @@ function mend(e) {
   if (dr.moved) return; // a scroll, not a tap
   if (dr.tool === 'check') addMark({ t: 'check', x: pt.x, y: pt.y, s: SIZE[CK.thick], c: toolColor('check') });
   else if (dr.tool === 'stamp') { var st = STAMPS[+$('ckStamp').value]; addMark({ t: 'stamp', s: STAMP_PT[CK.thick], x: pt.x, y: pt.y, str: st[0], c: st[1], f: st[2] }); }
-  else if (dr.tool === 'text') ask('Write a note', 'It is placed where you clicked.', { input: '', ok: 'Add note' }).then(function (v) { if (v) addMark({ t: 'text', x: pt.x, y: pt.y, str: v, s: TEXT_PT[CK.thick], c: toolColor('text') }); });
+  else if (dr.tool === 'text') {
+    var nm = addMark({ t: 'text', box: true, x: Math.min(pt.x, 0.68), y: Math.min(pt.y, 0.93), w: 0.3, h: 0.07, str: '', s: TEXT_PT[CK.thick], c: toolColor('text') });
+    var nta = $('notes').querySelector('[data-id="' + nm.id + '"] textarea'); if (nta) nta.focus();
+  }
 }
 $('marks').addEventListener('pointerup', mend);
 $('marks').addEventListener('pointercancel', mend);
