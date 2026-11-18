@@ -271,7 +271,7 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
 .note .rm{left:26px;cursor:pointer;color:var(--red)}
 .note .h{position:absolute;right:-11px;bottom:-11px;width:22px;height:22px;border-radius:11px;background:#fff;border:2px solid var(--g5);cursor:nwse-resize;touch-action:none;pointer-events:auto;z-index:3}
 @media (pointer:coarse){.note .mv,.note .rm{width:34px;height:30px;top:-32px;line-height:28px;font-size:18px}.note .rm{left:38px}.note .h{width:28px;height:28px;right:-14px;bottom:-14px;border-radius:14px}}
-#checkbar{flex-wrap:nowrap;gap:5px}
+#checkbar{flex-wrap:nowrap;gap:4px}
 #checkbar .btn{padding-left:9px;padding-right:9px}
 #checkbar #ckShapeBtn,#checkbar [data-tool=check],#checkbar [data-tool=stamp],#checkbar .x0{min-width:38px;font-size:16px}
 #checkbar #ckShapeBtn,#checkbar [data-tool=stamp]{border-top-right-radius:0;border-bottom-right-radius:0;margin-right:-6px}
@@ -400,7 +400,7 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
   <button class="btn tool" data-tool="pen" title="Pencil: draw freely">✎ Pen</button>
   <button class="btn tool" data-tool="hl" title="Highlighter">▮ Highlight</button>
   <button class="btn tool" data-tool="erase" title="Eraser: click or drag over marks to rub them out">⌫ Eraser</button>
-  <button class="btn" id="bErase" title="Erase background: Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">🧽 Scan</button>
+  <button class="btn" id="bErase" title="Erase background: Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">Erase background</button>
   <div class="sep"></div>
   <button class="btn tool" data-tool="check" title="Check mark: click to place it">✓</button>
   <button class="btn tool" data-tool="arrow" id="ckShapeBtn" title="Shape: drag to draw it">➜</button><select id="ckShape" class="btn" title="Which shape"><option value="arrow">➜ Arrow</option><option value="oval">◯ Circle</option><option value="rect">▢ Square</option><option value="line">／ Line</option></select>
@@ -1959,7 +1959,8 @@ function renderNotes() {
     var ta = document.createElement('textarea'); ta.value = m.str || ''; ta.spellcheck = false; ta.style.fontSize = ((m.s || 14) * k) + 'px'; ta.style.color = m.c;
     var pre = null;
     ta.onfocus = function () { pre = JSON.stringify(pg.marks); el.classList.add('act'); };
-    ta.oninput = function () { if (pre) { undo.push([{ id: pg.id, boxes: JSON.stringify(pg.boxes), marks: pre }]); pre = null; } m.str = ta.value; save(); };
+    var fit = function () { ta.style.height = '0px'; var need = ta.scrollHeight + 2, H = $('marks').getBoundingClientRect().height; ta.style.height = '100%'; if (H && need > el.clientHeight + 1) { m.h = Math.min(need / H, 1 - m.y); place(el, m); } };
+    ta.oninput = function () { fit(); if (pre) { undo.push([{ id: pg.id, boxes: JSON.stringify(pg.boxes), marks: pre }]); pre = null; } m.str = ta.value; save(); };
     ta.onblur = function () { el.classList.remove('act'); if (!m.str || !m.str.trim()) { pg.marks = pg.marks.filter(function (q) { return q !== m; }); renderMarks(); } };
     el.appendChild(ta);
     ['mv', 'rm', 'h'].forEach(function (cl) {
@@ -2051,7 +2052,7 @@ function mend(e) {
   if (dr.tool === 'check') addMark({ t: 'check', x: pt.x, y: pt.y, s: SIZE[CK.thick], c: toolColor('check') });
   else if (dr.tool === 'stamp') { var st = STAMPS[+$('ckStamp').value]; addMark({ t: 'stamp', s: STAMP_PT[CK.thick], x: pt.x, y: pt.y, str: st[0], c: st[1], f: st[2] }); }
   else if (dr.tool === 'text') {
-    var nm = addMark({ t: 'text', box: true, x: Math.min(pt.x, 0.68), y: Math.min(pt.y, 0.93), w: 0.3, h: 0.07, str: '', s: TEXT_PT[CK.thick], c: toolColor('text') });
+    var nm = addMark({ t: 'text', box: true, x: Math.min(pt.x, 0.68), y: Math.min(pt.y, 0.93), w: 0.3, h: (TEXT_PT[CK.thick] * 1.45 + 6) / page().ptH, str: '', s: TEXT_PT[CK.thick], c: toolColor('text') });
     var nta = $('notes').querySelector('[data-id="' + nm.id + '"] textarea'); if (nta) nta.focus();
   }
 }
