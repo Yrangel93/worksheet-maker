@@ -74,7 +74,7 @@ body.edit .box{cursor:move}
 .box.draw{border-style:dashed}
 body.test .box{border:1px dashed rgba(22,101,52,.45);background:rgba(220,252,231,.35)}
 body.test .box:focus-within{border:1.5px solid var(--g5);background:rgba(255,255,255,.75)}
-.box input,.box textarea{position:absolute;inset:0;width:100%;height:100%;border:0;outline:0;background:transparent;color:var(--blue);font-family:Helvetica,Arial,sans-serif;padding:0 3px;resize:none;margin:0;line-height:1.15;overflow:hidden;box-sizing:border-box}
+.box input,.box textarea{position:absolute;inset:0;width:100%;height:100%;border:0;outline:0;background:transparent;color:var(--blue);font-family:Helvetica,Arial,sans-serif;padding:0 3px;resize:none;margin:0;line-height:1.25;-webkit-appearance:none;appearance:none;border-radius:0;overflow:hidden;box-sizing:border-box}
 #props{width:230px;flex:none;background:#fff;border-left:1px solid var(--line);overflow:auto;padding:12px}
 #props .grp{border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px}
 #props label{display:flex;align-items:center;gap:8px;margin:8px 0}
@@ -260,7 +260,8 @@ body.test #stubar{display:flex}
 .menu .btn.main + .btn[data-menu]{margin-left:5px}
 body.check.erasing #layer{visibility:visible;pointer-events:auto}
 body.check.erasing #marks{pointer-events:none}
-#checkbar #ckUndo{margin-left:auto}
+#checkbar #ckEye{margin-left:auto}
+body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
 #notes{position:absolute;inset:0;pointer-events:none}
 .note{position:absolute}
 .note textarea{width:100%;height:100%;box-sizing:border-box;margin:0;padding:2px;border:1.5px dashed #d97706;background:rgba(255,251,235,.55);resize:none;overflow:hidden;line-height:1.2;font-family:Helvetica,Arial,sans-serif;outline:0;pointer-events:auto;border-radius:2px}
@@ -270,6 +271,19 @@ body.check.erasing #marks{pointer-events:none}
 .note .rm{left:26px;cursor:pointer;color:var(--red)}
 .note .h{position:absolute;right:-11px;bottom:-11px;width:22px;height:22px;border-radius:11px;background:#fff;border:2px solid var(--g5);cursor:nwse-resize;touch-action:none;pointer-events:auto;z-index:3}
 @media (pointer:coarse){.note .mv,.note .rm{width:34px;height:30px;top:-32px;line-height:28px;font-size:18px}.note .rm{left:38px}.note .h{width:28px;height:28px;right:-14px;bottom:-14px;border-radius:14px}}
+#checkbar{flex-wrap:nowrap;gap:5px}
+#checkbar .btn{padding-left:9px;padding-right:9px}
+#checkbar #ckShapeBtn,#checkbar [data-tool=check],#checkbar [data-tool=stamp],#checkbar .x0{min-width:38px;font-size:16px}
+#checkbar #ckShapeBtn,#checkbar [data-tool=stamp]{border-top-right-radius:0;border-bottom-right-radius:0;margin-right:-6px}
+#checkbar #ckShape,#checkbar #ckStamp{border-top-left-radius:0;border-bottom-left-radius:0}
+#checkbar #ckShape{width:24px;padding:0;color:transparent;-webkit-appearance:none;appearance:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23166534'/%3E%3C/svg%3E") center/9px no-repeat}
+#checkbar #ckShape option{color:#14301f}
+#checkbar #ckStamp{max-width:112px}
+#checkbar .sep{margin:0 1px}
+#ckColors{display:inline-flex;gap:4px}
+#checkbar #ckThick{width:54px}
+#ckColors .sw{width:22px;height:22px}
+@media (min-width:901px) and (max-width:1179px){#checkbar{flex-wrap:wrap}}
 </style>
 </head>
 <body class="test">
@@ -380,30 +394,23 @@ body.check.erasing #marks{pointer-events:none}
 </div>
 
 <div class="bar" id="checkbar">
-  <button class="btn tool" data-tool="select" title="Click one of your marks (check, circle, arrow...) to move or delete it. Answer boxes are not moved with this.">Move mark</button>
-  <button class="btn danger" id="ckDel" title="Delete the mark you selected with Move mark">Delete mark</button>
-  <button class="btn danger" id="ckClear">Clear marks</button>
+  <button class="btn tool" data-tool="select" title="Move mark: click one of your marks to move it (answer boxes are not moved)">↖ Move</button>
+  <button class="btn danger" id="ckClear">Clear</button>
   <div class="sep"></div>
-  <button class="btn tool" data-tool="pen" title="Draw freely">✎ Pencil</button>
-  <button class="btn tool" data-tool="hl" title="Highlight">▮ Highlighter</button>
-  <button class="btn tool" data-tool="erase" title="Click or drag over marks to rub them out">Eraser</button>
+  <button class="btn tool" data-tool="pen" title="Pencil: draw freely">✎ Pen</button>
+  <button class="btn tool" data-tool="hl" title="Highlighter">▮ Highlight</button>
+  <button class="btn tool" data-tool="erase" title="Eraser: click or drag over marks to rub them out">⌫ Eraser</button>
+  <button class="btn" id="bErase" title="Erase background: Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">🧽 Scan</button>
   <div class="sep"></div>
-  <button class="btn tool" data-tool="check" title="Click to place a check mark">✓ Check</button>
-  <button class="btn tool" data-tool="arrow" title="Drag toward the thing you want to point at. A click gives a standard arrow.">➜ Arrow</button>
-  <button class="btn tool" data-tool="oval" title="Drag around a word to circle it">◯ Circle</button>
-  <button class="btn tool" data-tool="rect" title="Drag to draw a square or rectangle">▢ Square</button>
-  <button class="btn tool" data-tool="line" title="Drag to draw a straight line, for example to underline">／ Line</button>
-  <button class="btn tool" data-tool="text" title="Click where you want to write a note">T Note</button>
-  <button class="btn tool" data-tool="stamp" title="Click to place the stamp chosen on the right">Stamp</button>
+  <button class="btn tool" data-tool="check" title="Check mark: click to place it">✓</button>
+  <button class="btn tool" data-tool="arrow" id="ckShapeBtn" title="Shape: drag to draw it">➜</button><select id="ckShape" class="btn" title="Which shape"><option value="arrow">➜ Arrow</option><option value="oval">◯ Circle</option><option value="rect">▢ Square</option><option value="line">／ Line</option></select>
+  <button class="btn tool" data-tool="text" title="Text note: click where you want to write">T Text</button>
+  <button class="btn tool" data-tool="stamp" title="Stamp: click to place the stamp chosen next to it">★</button>
   <select id="ckStamp" class="btn" title="Which stamp"></select>
   <div class="sep"></div>
   <span id="ckColors"></span>
-  <select id="ckThick" class="btn" title="Thickness / size"><option value="0">Thin</option><option value="1" selected>Medium</option><option value="2">Thick</option></select>
-  <div class="sep"></div>
-  <button class="btn" id="ckUndo">↩ Undo</button>
-  <button class="btn" id="ckRedo">Redo ↪</button>
-  <button class="btn" id="ckEye" aria-pressed="false" title="Show or hide the answer boxes while you mark">👁 View answer boxes</button>
-  <button class="btn" id="bErase" title="Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">Erase background</button>
+  <select id="ckThick" class="btn" title="Thickness / size"><option value="0">S</option><option value="1" selected>M</option><option value="2">L</option></select>
+  <button class="btn" id="ckEye" aria-pressed="false" title="Show or hide the answer boxes while you mark">👁 Boxes</button>
 </div>
 
 <main>
@@ -1710,7 +1717,7 @@ function renderBoxes() {
 }
 function growBox(b, el, inp, pg, k, quiet) { // every box wraps and grows downward as the student types; Enter starts a new line
   var H = el.parentNode ? el.parentNode.clientHeight : 0; if (!H) return;
-  var lh = fontPt(b, pg) * k * 1.15, base = (b.h0 || b.h) * H;
+  var lh = fontPt(b, pg) * k * 1.25, base = (b.h0 || b.h) * H;
   inp.style.paddingTop = '0px'; inp.style.height = '0px';
   var need = inp.scrollHeight; inp.style.height = '100%';
   if (need <= base + 1 || !inp.value) { inp.style.paddingTop = b.multi ? '0px' : Math.max(0, (el.clientHeight - lh) / 2) + 'px'; if (b.h0 && !inp.value) { b.h = b.h0; delete b.h0; place(el, b); } else if (b.h0 && need <= base + 1) { b.h = b.h0; delete b.h0; place(el, b); } return; }
@@ -1941,7 +1948,6 @@ function renderMarks() {
     var g = svg.querySelector('[data-id="' + S.msel + '"]');
     if (g) { var bb = g.getBBox(), r = document.createElementNS('http://www.w3.org/2000/svg', 'rect'); r.setAttribute('x', bb.x - 3); r.setAttribute('y', bb.y - 3); r.setAttribute('width', bb.width + 6); r.setAttribute('height', bb.height + 6); r.setAttribute('class', 'msel'); svg.appendChild(r); } else S.msel = null;
   }
-  $('ckDel').disabled = !S.msel;
   renderNotes();
 }
 function renderNotes() {
@@ -1973,8 +1979,10 @@ function renderNotes() {
     L.appendChild(el);
   });
 }
+var SHAPE_ICON = { arrow: '➜', oval: '◯', rect: '▢', line: '／' };
 function setTool(t) {
   CK.tool = t; if (t !== 'select') S.msel = null; if (S.erase) setErase(false);
+  if (SHAPE_ICON[t]) { $('ckShapeBtn').dataset.tool = t; $('ckShapeBtn').textContent = SHAPE_ICON[t]; $('ckShape').value = t; }
   document.querySelectorAll('#checkbar [data-tool]').forEach(function (b) { b.classList.toggle('on', b.dataset.tool === t); });
   var free = DRAGT.indexOf(t) >= 0 || t === 'erase';
   $('marks').style.touchAction = free ? 'none' : 'pan-x pan-y pinch-zoom';
@@ -2486,7 +2494,8 @@ function makePdf(d, canva) {
         }
         order(pg.boxes).forEach(function (b, j) {
           var tf = form.createTextField('page' + pi + '_answer' + (j + 1));
-          tf.enableMultiline();
+          var tall = b.multi || b.h * pg.ptH >= fontPt(b, pg) * 2.6; // a one-line answer: single-line field, so iPad/Preview centre the text and do not cut the bottom off
+          if (tall) tf.enableMultiline();
           var fk = boxFam(b) + (b.bold ? 'B' : ''), fnt = fcache[fk];
           if (!fnt) { var F = L.StandardFonts, nm = { sans: [F.Helvetica, F.HelveticaBold], serif: [F.TimesRoman, F.TimesRomanBold], mono: [F.Courier, F.CourierBold] }[boxFam(b)][b.bold ? 1 : 0]; fnt = fcache[fk] = pdf.embedStandardFont ? pdf.embedStandardFont(nm) : font; }
           if (keep && b.v) tf.setText(pdfSafe(b.v));
@@ -2849,14 +2858,14 @@ function editStamps() {
   var f = d.querySelector('input'); if (f) f.focus();
 }
 stampMenu();
+$('ckShape').onchange = function () { var t = this.value; $('ckShapeBtn').dataset.tool = t; $('ckShapeBtn').textContent = SHAPE_ICON[t]; setTool(t); };
 $('ckStamp').onchange = function () { if (this.value === 'edit') { editStamps(); return; } setTool('stamp'); };
 $('ckThick').onchange = function () { // also resizes the mark you have selected with Move
   CK.thick = +this.value; var pg = page(), m = pg && S.msel ? (pg.marks || []).filter(function (x) { return x.id === S.msel; })[0] : null;
   if (m && (m.t === 'stamp' || m.t === 'text' || m.t === 'check')) { snap([pg]); m.s = m.t === 'stamp' ? STAMP_PT[CK.thick] : m.t === 'text' ? TEXT_PT[CK.thick] : SIZE[CK.thick]; renderMarks(); save(); }
 };
-$('ckDel').onclick = delMark;
 $('ckClear').onclick = function () { var pg = page(); if (!pg || !(pg.marks || []).length) return toast('There are no marks on this page.'); snap([pg]); pg.marks = []; S.msel = null; renderMarks(); save(); toast('All marks on this page removed. (Undo brings them back.)'); };
-$('ckUndo').onclick = doUndo; $('ckRedo').onclick = doRedo;
+
 function showBoxes(on) { document.body.classList.toggle('showBoxes', !!on); $('ckEye').classList.toggle('on', !!on); $('ckEye').setAttribute('aria-pressed', on ? 'true' : 'false'); }
 $('ckEye').onclick = function () { showBoxes(!document.body.classList.contains('showBoxes')); };
 $('bAdd').onclick = function () {
