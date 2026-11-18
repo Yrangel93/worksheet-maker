@@ -350,6 +350,7 @@ body.test #stubar{display:flex}
       <hr>
       <div class="lbl">PDF (fillable boxes and teacher marks)</div>
       <button class="item" id="xPdf"><b>PDF</b> — this file</button>
+      <button class="item" id="xShare"><b>Share</b> (WhatsApp, Mail, Zoom…) — this file</button>
       <button class="item" id="xCanva"><b>Canva</b> (editable PDF) — this file</button>
       <button class="item" id="xPdfAll"><b>PDF</b> — all open files (one ZIP)</button>
       <hr>
@@ -2601,6 +2602,21 @@ function exportOne(kind) {
     toast(n ? 'Done. The file is in your Downloads folder (' + n + ' answer boxes).' : 'Done — but this file has no answer boxes yet.');
   }, function (e) { console.error(e); idle(); ask('Export did not work', String(e && e.message || e)); });
 }
+function exportShare() { // the system share sheet: WhatsApp, Mail, Zoom chat, AirDrop... whatever the device has installed
+  var d = doc(); if (!d) return;
+  if (!navigator.canShare) return ask('Sharing is not available here', 'This browser has no share menu. Use PDF — this file, then send the downloaded file by WhatsApp, e-mail or Zoom chat.');
+  var marked = d.pages.some(function (p) { return (p.marks || []).length; });
+  return busy('Making the PDF…').then(function () { return makePdf(d); }).then(function (blob) {
+    idle();
+    var name = baseName(d.name).replace(/ \((fillable|checked)\)$/, '') + (marked ? ' (checked).pdf' : ' (fillable).pdf');
+    var file = new File([blob], name, { type: 'application/pdf' });
+    if (!navigator.canShare({ files: [file] })) { plainDownload(blob, name); return toast('This device cannot share files from the browser, so the PDF was downloaded. Send it from your Downloads.', 7000); }
+    return ask('Ready to share', '"' + name + '" is ready. Press Share, then pick WhatsApp, Mail, Zoom or another app.', { ok: 'Share' }).then(function (ok) {
+      if (!ok) return;
+      return navigator.share({ files: [file], title: name }).catch(function (e) { if (e && e.name !== 'AbortError') { plainDownload(blob, name); toast('Sharing did not open, so the PDF was downloaded instead.', 6000); } });
+    });
+  }, function (e) { console.error(e); idle(); ask('Export did not work', String(e && e.message || e)); });
+}
 function exportCanva() {
   var d = doc(); if (!d) return;
   return busy('Making the Canva file…').then(function () { return makePdf(d, true); }).then(function (blob) {
@@ -2820,6 +2836,7 @@ $('bNew').onclick = function () {
   });
 };
 $('xPdf').onclick = function () { closeMenus(); exportOne('pdf'); };
+$('xShare').onclick = function () { closeMenus(); exportShare(); };
 function wordKind() { var r = document.querySelector('input[name=wordFor]:checked'); return r ? r.value : 'docx'; }
 $('xDocx').onclick = function () { closeMenus(); exportOne(wordKind()); };
 $('xCanva').onclick = function () { closeMenus(); exportCanva(); };
