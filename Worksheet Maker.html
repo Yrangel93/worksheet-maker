@@ -623,6 +623,20 @@ function findExtras(rgba, ink, W, H) {
     if (r >= 0.028 * W && l < 0.02 * W) { g.side = 'L'; labs.push(g); } // line to the right: the number is on the left of the picture
     else if (l >= 0.028 * W && r < 0.02 * W) { g.side = 'R'; labs.push(g); }
   });
+  ['L', 'R'].forEach(function (sd) { // numbers stacked in the same column whose line starts a bit above or below them (4, 8, 24 on the body picture)
+    var col = labs.filter(function (g) { return g.side === sd; }); if (col.length < 3) return;
+    var ys = col.map(function (g) { return (g.y0 + g.y1) / 2; }).sort(function (a, b) { return a - b; }), gaps = [];
+    for (var k = 1; k < ys.length; k++) gaps.push(ys[k] - ys[k - 1]); gaps.sort(function (a, b) { return a - b; });
+    var pitch = gaps[0] || 0.03 * H;
+    groups.forEach(function (g) {
+      if (labs.indexOf(g) >= 0) return;
+      var h = g.y1 - g.y0 + 1, cy = (g.y0 + g.y1) / 2;
+      var near = col.filter(function (c) { var ch = c.y1 - c.y0 + 1; return h >= 0.7 * ch && h <= 1.4 * ch && Math.abs((sd === 'L' ? c.x1 - g.x1 : c.x0 - g.x0)) <= 1.2 * ch && Math.abs((c.y0 + c.y1) / 2 - cy) <= 1.6 * pitch; });
+      if (!near.length || g.x1 - g.x0 > 3.2 * h) return;
+      if (leader(g, sd === 'L' ? -1 : 1) >= 0.02 * W) return; // a line on the wrong side: not a label
+      g.side = sd; labs.push(g);
+    });
+  });
   var nL = labs.filter(function (g) { return g.side === 'L'; }), nR = labs.filter(function (g) { return g.side === 'R'; });
   var facing = nL.length >= 3 && nR.length >= 3 && Math.min.apply(null, nR.map(function (g) { return g.x0; })) - Math.max.apply(null, nL.map(function (g) { return g.x1; })) > 0.12 * W; // two columns of numbers with a picture between them
   if (labs.length >= 6 && facing) {
@@ -663,8 +677,12 @@ function findExtras(rgba, ink, W, H) {
     });
     if (best) pairs.push({ o: o, c: best });
   });
+  var cys = pairs.map(function (p) { return (p.o.y0 + p.o.y1) / 2; }).sort(function (a, b) { return a - b; }), pitch = H;
+  for (var pi = 1; pi < cys.length; pi++) if (cys[pi] - cys[pi - 1] > 0.005 * H) pitch = Math.min(pitch, cys[pi] - cys[pi - 1]);
   if (pairs.length >= 2) pairs.forEach(function (p) {
     var bx = p.o.x1 + 3, bw = p.c.x0 - 3 - bx, by = Math.min(p.o.y0, p.c.y0), bh = Math.max(p.o.y1, p.c.y1) - by + 1;
+    var th = Math.min(Math.max(bh * 1.6, 0.022 * H), pitch * 0.82); // taller than the brackets so a letter or number fits well
+    if (th > bh) { by -= (th - bh) / 2; bh = th; }
     add.push({ x: bx / W, y: by / H, w: bw / W, h: bh / H, label: true, k: 'bracket' });
   });
 
@@ -2426,7 +2444,8 @@ function cleanPage(pg, onlyStraight) { // onlyStraight: just turn the page level
     }).then(function (ok) { // the cleaned page has whole lines again (no pencil, no watermark): refresh the answer boxes that were found automatically
       if (!ok || onlyStraight || !pg.boxes.some(function (b) { return b.auto && !hasText(b); })) return ok;
       return detect(pg).then(function (r2) {
-        pg.boxes = pg.boxes.filter(function (b) { return !b.auto || hasText(b); });
+        var lost = pg.boxes.filter(function (b) { return b.auto && !hasText(b) && !r2.boxes.some(function (nb) { return overlaps(nb, b); }); }); // found before but not after (a faint bracket): keep it
+        pg.boxes = pg.boxes.filter(function (b) { return !b.auto || hasText(b) || lost.indexOf(b) >= 0; });
         r2.boxes.forEach(function (nb) { if (!pg.boxes.some(function (b) { return overlaps(nb, b); })) pg.boxes.push({ id: nid(), x: nb.x, y: nb.y, w: nb.w, h: nb.h, multi: !!nb.multi, fs: 0, v: '', auto: true }); });
         pg.origBoxes = JSON.stringify(pg.boxes); return ok;
       }, function () { return ok; });
