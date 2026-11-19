@@ -325,6 +325,7 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
     </div>
   </div>
   <input type="file" id="file" multiple accept=".pdf,application/pdf,image/*" class="hide">
+  <select id="sens" class="hide"><option value="1" selected>1</option></select><select id="cleanLvl" class="hide"><option value="1" selected>1</option></select>
   <input type="file" id="dir" webkitdirectory multiple class="hide">
   <div class="sep"></div>
   <div class="menu" id="mFind">
@@ -337,10 +338,6 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
       <div class="lbl">Clean scan (white background + straighten)</div>
       <button class="item" id="bClean" title="Makes the gray, speckled background white and straightens the page">Clean scan — this page</button>
       <button class="item" id="bCleanFile">Clean all pages of this file</button>
-      <div class="row"><span style="font-size:13px">Strength</span><select id="cleanLvl" style="flex:1"><option value="0">Light (keeps faint print)</option><option value="1" selected>Normal</option><option value="2">Strong (whiter paper)</option></select></div>
-      <hr>
-      <div class="lbl">How many lines to find</div>
-      <div class="row"><select id="sens" style="flex:1"><option value="0">Fewer (only clear lines)</option><option value="1" selected>Normal</option><option value="2">More (also short or faint lines)</option></select></div>
     </div>
   </div>
   <div class="sep"></div>
@@ -375,19 +372,17 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
   <div class="menu right" id="mExp">
     <button class="btn main" data-menu>Export ▾</button>
     <div class="pop">
-      <div class="lbl">Word document — where will it be opened?</div>
-      <label class="chk"><input type="radio" name="wordFor" value="docx" checked> Word on a computer or iPad</label>
-      <label class="chk"><input type="radio" name="wordFor" value="docxp"> Pages (Mac, iPhone, iPad)</label>
-      <label class="chk"><input type="radio" name="wordFor" value="docxt"> Word Online (in a browser)</label>
-      <button class="item" id="xDocx"><b>Word</b> — this file</button>
-      <button class="item" id="xDocxAll"><b>Word</b> — all open files (one ZIP)</button>
+      <div class="lbl">Tick one or more</div>
+      <label class="chk"><input type="checkbox" class="xk" value="pdf" checked> <b>PDF</b> (fillable, with teacher marks)</label>
+      <label class="chk"><input type="checkbox" class="xk" value="docx"> <b>Word</b> — computer or iPad</label>
+      <label class="chk"><input type="checkbox" class="xk" value="docxp"> <b>Word</b> — Pages (Mac, iPhone, iPad)</label>
+      <label class="chk"><input type="checkbox" class="xk" value="docxt"> <b>Word</b> — Word Online (browser)</label>
+      <label class="chk"><input type="checkbox" class="xk" value="jpg"> <b>JPG pictures</b> (one per page)</label>
+      <label class="chk"><input type="checkbox" class="xk" value="canva"> <b>Canva</b> (editable PDF)</label>
+      <button class="item" id="xGo"><b>Export — this file</b></button>
+      <button class="item" id="xGoAll"><b>Export — all open files</b> (one ZIP)</button>
       <hr>
-      <div class="lbl">PDF (fillable boxes and teacher marks)</div>
-      <button class="item" id="xPdf"><b>PDF</b> — this file</button>
-      <button class="item" id="xShare"><b>Share</b> (WhatsApp, Mail, Zoom…) — this file</button>
-      <button class="item" id="xJpg"><b>JPG picture</b> (with marks) — this file</button>
-      <button class="item" id="xCanva"><b>Canva</b> (editable PDF) — this file</button>
-      <button class="item" id="xPdfAll"><b>PDF</b> — all open files (one ZIP)</button>
+      <button class="item" id="xShare"><b>Share PDF</b> (WhatsApp, Mail…) — this file</button>
       <hr>
       <label class="chk"><input type="checkbox" id="keepTest" checked> Include the answers typed in Student mode</label>
     </div>
@@ -2783,14 +2778,13 @@ function exportShare() { // the system share sheet: WhatsApp, Mail, Zoom chat, A
     if (!navigator.canShare({ files: [file] })) { plainDownload(blob, name); return toast('This device cannot share files from the browser, so the PDF was downloaded. Send it from your Downloads.', 7000); }
     return ask('Ready to share', '"' + name + '" is ready. Press Share, then pick WhatsApp, Mail or another app. Zoom missing? On iPad/iPhone choose Save to Files, then in the Files app touch and hold the PDF → Share → Zoom.', { ok: 'Share' }).then(function (ok) {
       if (!ok) return;
-      return navigator.share({ files: [file], title: name }).catch(function (e) { if (e && e.name !== 'AbortError') { plainDownload(blob, name); toast('Sharing did not open, so the PDF was downloaded instead.', 6000); } });
+      return navigator.share({ files: [file] }).catch(function (e) { if (e && e.name !== 'AbortError') { plainDownload(blob, name); toast('Sharing did not open, so the PDF was downloaded instead.', 6000); } });
     });
   }, function (e) { console.error(e); idle(); ask('Export did not work', String(e && e.message || e)); });
 }
-function exportJpg() {
-  var d = doc(); if (!d) return;
+function makeJpgs(d) {
   var keep = $('keepTest').checked, files = [], i = 0, base = baseName(d.name).replace(/ \((fillable|checked)\)$/, '');
-  return busy('Making the pictures…').then(function step() {
+  return Promise.resolve().then(function step() {
     if (i >= d.pages.length) return;
     var pg = d.pages[i++];
     return pageCanvas(pg).then(function (c) {
@@ -2815,11 +2809,34 @@ function exportJpg() {
     }).then(function (blob) { return blob.arrayBuffer(); }).then(function (ab) {
       files.push({ name: base + (d.pages.length > 1 ? ' page ' + i : '') + '.jpg', data: new Uint8Array(ab) });
     }).then(function () { return new Promise(function (r) { setTimeout(r, 0); }); }).then(step);
+  }).then(function () { return files; });
+}
+function outName(d, kind) {
+  var base = baseName(d.name).replace(/ \((fillable|checked|editable[^)]*|student|Canva)\)$/, ''), marked = d.pages.some(function (p) { return (p.marks || []).length; });
+  return base + ({ pdf: marked ? ' (checked).pdf' : ' (fillable).pdf', docx: ' (editable, Word computer).docx', docxp: ' (editable, Pages).docx', docxt: ' (editable, Word Online).docx', canva: ' (Canva).pdf', html: ' (student).html' })[kind];
+}
+function makeFiles(d, kind) { // [{name, data}] for one file in one format
+  if (kind === 'jpg') return makeJpgs(d);
+  var p = kind === 'pdf' ? makePdf(d) : kind === 'canva' ? makePdf(d, true) : kind === 'html' ? makeHtml(d) : makeDocx(d, kind === 'docxt');
+  return p.then(function (b) { return b.arrayBuffer(); }).then(function (ab) { return [{ name: outName(d, kind), data: new Uint8Array(ab) }]; });
+}
+function exportPick(all) {
+  var kinds = Array.prototype.map.call(document.querySelectorAll('input.xk:checked'), function (c) { return c.value; });
+  if (!kinds.length) return toast('Tick at least one format first.');
+  var docs = all ? S.docs.slice() : (doc() ? [doc()] : []); if (!docs.length) return;
+  closeMenus();
+  var jobs = []; docs.forEach(function (d) { kinds.forEach(function (k) { jobs.push([d, k]); }); });
+  var out = [], used = {}, i = 0;
+  return busy('Exporting…').then(function step() {
+    if (i >= jobs.length) return;
+    var jb = jobs[i++]; $('busyT').textContent = 'Exporting ' + i + ' of ' + jobs.length + ' — ' + jb[0].name;
+    return makeFiles(jb[0], jb[1]).then(function (fs) {
+      fs.forEach(function (f) { var k = f.name, c = 2; while (used[k]) k = f.name.replace(/(\.[a-z]+)$/, ' ' + (c++) + '$1'); used[k] = 1; out.push({ name: k, data: f.data }); });
+    }).then(function () { return new Promise(function (r) { setTimeout(r, 0); }); }).then(step);
   }).then(function () {
     idle();
-    if (files.length === 1) download(new Blob([files[0].data], { type: 'image/jpeg' }), files[0].name);
-    else download(new Blob([zip(files)], { type: 'application/zip' }), base + ' (JPG pages).zip');
-    toast('Done. ' + (files.length === 1 ? 'Your picture is in Downloads.' : files.length + ' pictures are inside one ZIP in Downloads.'));
+    if (out.length === 1) { var ty = /\.pdf$/.test(out[0].name) ? 'application/pdf' : /\.jpg$/.test(out[0].name) ? 'image/jpeg' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'; download(new Blob([out[0].data], { type: ty }), out[0].name); toast('Done. The file is in your Downloads.'); }
+    else { download(new Blob([zip(out)], { type: 'application/zip' }), (docs.length === 1 ? baseName(docs[0].name) : 'Worksheets') + ' (export).zip'); toast('Done. ' + out.length + ' files are inside one ZIP in your Downloads.'); }
   }, function (e) { console.error(e); idle(); ask('Export did not work', String(e && e.message || e)); });
 }
 function exportCanva() {
@@ -3038,15 +3055,10 @@ $('bNew').onclick = function () {
     S.docs = []; S.d = S.p = 0; S.sel = []; undo = []; render(); save();
   });
 };
-$('xPdf').onclick = function () { closeMenus(); exportOne('pdf'); };
-$('xJpg').onclick = function () { closeMenus(); exportJpg(); };
+$('xGo').onclick = function () { exportPick(false); };
+$('xGoAll').onclick = function () { exportPick(true); };
 $('xShare').onclick = function () { closeMenus(); exportShare(); };
-function wordKind() { var r = document.querySelector('input[name=wordFor]:checked'); return r ? r.value : 'docx'; }
-$('xDocx').onclick = function () { closeMenus(); exportOne(wordKind()); };
-$('xCanva').onclick = function () { closeMenus(); exportCanva(); };
-$('xPdfAll').onclick = function () { closeMenus(); exportAll('pdf'); };
-$('xDocxAll').onclick = function () { closeMenus(); exportAll(wordKind()); };
-['xCanva', 'xJpg', 'bStr', 'bStrFile', 'bClean', 'bCleanFile', 'bDel', 'bDup', 'bClearPage', 'bClearFile', 'bClearTest'].forEach(function (id) { $(id).addEventListener('click', closeMenus); });
+['bStr', 'bStrFile', 'bClean', 'bCleanFile', 'bDel', 'bDup', 'bClearPage', 'bClearFile', 'bClearTest'].forEach(function (id) { $(id).addEventListener('click', closeMenus); });
 
 var menuT = 0;
 function closeMenus() {
