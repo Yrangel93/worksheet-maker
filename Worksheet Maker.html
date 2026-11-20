@@ -302,6 +302,10 @@ body.test .box.act .sm,body.test .box.act .bg{display:block}
 @media (pointer:coarse){body.test .box .sm,body.test .box .bg{width:38px;height:30px;top:-32px;line-height:28px;font-size:15px} body.test .box .sm{left:76px} body.test .box .bg{left:116px}}
 /* Boxes button: outlines on or off; answers always show */
 body:not(.showBoxes) .box:not(.act){border-color:transparent!important;background:transparent!important}
+.note .sm,.note .bg{position:absolute;top:-24px;width:28px;height:22px;line-height:20px;text-align:center;background:#fff;border:1.5px solid var(--g5);border-radius:6px 6px 0 0;font-size:12px;font-weight:700;color:var(--g7);user-select:none;-webkit-user-select:none;z-index:3;pointer-events:auto;cursor:pointer}
+.note .sm{left:52px}.note .bg{left:82px}
+@media (pointer:coarse){.note .sm,.note .bg{width:38px;height:30px;top:-32px;line-height:28px;font-size:15px}.note .sm{left:76px}.note .bg{left:116px}}
+.note textarea{white-space:pre-wrap}
 </style>
 </head>
 <body class="test">
@@ -1813,7 +1817,7 @@ $('layer').addEventListener('pointerdown', function (e) {
       if (f1 === f0) return;
       tb.fs = f1;
       var need = (f1 * 1.35 + 4 * sc) / pg.ptH, bot = tb.y + tb.h; // the box stays on its line: only as tall as the text needs, growing upward
-      if (!tb.multi || need > tb.h) { tb.h = Math.min(need, bot); tb.y = bot - tb.h; }
+      delete tb.h0; if (!tb.multi || need > tb.h) { tb.h = Math.min(need, bot); tb.y = bot - tb.h; }
       S.sel = [tb.id]; render(); save();
       var ni = $('layer').querySelector('.box[data-id="' + tb.id + '"] input, .box[data-id="' + tb.id + '"] textarea'); if (ni) ni.focus();
       return;
@@ -1946,7 +1950,7 @@ var STAMPS = [['Great job!', '#15803d'], ['Very good!', '#15803d'], ['Good job!'
 var PEN_COLORS = [GOLD, '#15803d', '#1d4ed8', '#111111', '#c2410c', '#7e22ce'], HL_COLORS = ['#fde047', '#86efac', '#f9a8d4', '#fdba74', '#7dd3fc'];
 var CK = { tool: 'check', hl: HL_COLORS[0], thick: 1, colors: { check: '#15803d', pen: '#111111' } }; // thick 0,1,2
 function toolColor(t) { return CK.colors[t] || GOLD; } // check is green, pencil black, everything else yellow until changed
-var STAMP_PT = [9, 13, 19], PEN_W = [1.2, 2.5, 5], HL_W = [9, 14, 22], SIZE = [16, 22, 30], TEXT_PT = [11, 14, 18];
+var STAMP_PT = [9, 13, 19], PEN_W = [1.2, 2.5, 5], HL_W = [9, 14, 22], SIZE = [16, 22, 30], TEXT_PT = [10, 12, 15];
 var meas2 = document.createElement('canvas').getContext('2d');
 function screenMeasure(str, size, bold) { meas2.font = (bold ? 'bold ' : '') + size + 'px Helvetica, Arial, sans-serif'; return meas2.measureText(str).width; }
 /* One description of every mark, used for the screen (SVG) and for the exported PDF. Units: PDF points, y down. */
@@ -2030,19 +2034,27 @@ function renderNotes() {
     var ta = document.createElement('textarea'); ta.value = m.str || ''; ta.spellcheck = false; ta.style.fontSize = ((m.s || 14) * pgScale(pg) * k) + 'px'; ta.style.color = m.c;
     var pre = null;
     ta.onfocus = function () { pre = JSON.stringify(pg.marks); el.classList.add('act'); };
-    var fit = function () { ta.style.height = '0px'; var need = ta.scrollHeight + 2, H = $('marks').getBoundingClientRect().height; ta.style.height = '100%'; if (H && need > el.clientHeight + 1) { m.h = Math.min(need / H, 1 - m.y); place(el, m); } };
+    var fit = function () { // the note grows with the text: wider first (up to the page edge), then taller
+      var R = $('marks').getBoundingClientRect(); if (!R.width) return;
+      ta.style.whiteSpace = 'pre'; ta.style.width = '0px'; var needW = ta.scrollWidth + 8; ta.style.width = ''; ta.style.whiteSpace = '';
+      var nw = clamp(needW / R.width, m.w0 || 0.08, 1 - m.x); if (Math.abs(nw - m.w) > 0.002) { m.w = nw; place(el, m); }
+      ta.style.height = '0px'; var needH = ta.scrollHeight + 2; ta.style.height = '100%';
+      var nh = Math.min(needH / R.height, 1 - m.y); if (Math.abs(nh - m.h) > 0.002) { m.h = nh; place(el, m); }
+    };
+    setTimeout(fit, 0);
     ta.oninput = function () { fit(); if (pre) { undo.push([{ id: pg.id, boxes: JSON.stringify(pg.boxes), marks: pre }]); pre = null; } m.str = ta.value; save(); };
     ta.onblur = function () { el.classList.remove('act'); if (!m.str || !m.str.trim()) { pg.marks = pg.marks.filter(function (q) { return q !== m; }); renderMarks(); } };
     el.appendChild(ta);
-    ['mv', 'rm', 'h'].forEach(function (cl) {
-      var q = document.createElement('div'); q.className = cl; q.textContent = cl === 'mv' ? '⠿' : cl === 'rm' ? '×' : ''; q.title = cl === 'mv' ? 'Drag to move' : cl === 'rm' ? 'Delete this note' : 'Drag to resize'; el.appendChild(q);
-      if (cl === 'rm') q.onpointerdown = function (e) { e.preventDefault(); snap([pg]); pg.marks = pg.marks.filter(function (z) { return z !== m; }); renderMarks(); save(); };
+    ['mv', 'rm', 'h', 'sm', 'bg'].forEach(function (cl) {
+      var q = document.createElement('div'); q.className = cl; q.textContent = cl === 'mv' ? '⠿' : cl === 'rm' ? '×' : cl === 'sm' ? 'A−' : cl === 'bg' ? 'A+' : ''; q.title = cl === 'mv' ? 'Drag to move' : cl === 'rm' ? 'Delete this note' : 'Drag to resize'; el.appendChild(q);
+      if (cl === 'sm' || cl === 'bg') { q.title = cl === 'sm' ? 'Smaller text' : 'Bigger text'; q.onpointerdown = function (e) { e.preventDefault(); snap([pg]); m.s = clamp((m.s || 12) + (cl === 'bg' ? 2 : -2), 8, 40); ta.style.fontSize = (m.s * pgScale(pg) * k) + 'px'; m.w0 = 0.04; fit(); save(); }; }
+      else if (cl === 'rm') q.onpointerdown = function (e) { e.preventDefault(); snap([pg]); pg.marks = pg.marks.filter(function (z) { return z !== m; }); renderMarks(); save(); };
       else q.onpointerdown = function (e) {
         e.preventDefault(); q.setPointerCapture(e.pointerId);
         var r = $('marks').getBoundingClientRect(), sx = e.clientX, sy = e.clientY, o = { x: m.x, y: m.y, w: m.w, h: m.h }, before = JSON.stringify(pg.marks), moved = false;
         q.onpointermove = function (e2) {
           var dx = (e2.clientX - sx) / r.width, dy = (e2.clientY - sy) / r.height; moved = true;
-          if (cl === 'mv') { m.x = clamp(o.x + dx, 0, 1 - m.w); m.y = clamp(o.y + dy, 0, 1 - m.h); } else { m.w = clamp(o.w + dx, 0.06, 1 - m.x); m.h = clamp(o.h + dy, 0.03, 1 - m.y); }
+          if (cl === 'mv') { m.x = clamp(o.x + dx, 0, 1 - m.w); m.y = clamp(o.y + dy, 0, 1 - m.h); } else { m.w = m.w0 = clamp(o.w + dx, 0.04, 1 - m.x); m.h = clamp(o.h + dy, 0.015, 1 - m.y); }
           place(el, m);
         };
         q.onpointerup = q.onpointercancel = function () { q.onpointermove = q.onpointerup = q.onpointercancel = null; if (moved) { undo.push([{ id: pg.id, boxes: JSON.stringify(pg.boxes), marks: before }]); save(); } };
@@ -2123,7 +2135,7 @@ function mend(e) {
   if (dr.tool === 'check') addMark({ t: 'check', x: pt.x, y: pt.y, s: SIZE[CK.thick], c: toolColor('check') });
   else if (dr.tool === 'stamp') { var st = STAMPS[+$('ckStamp').value]; addMark({ t: 'stamp', s: STAMP_PT[CK.thick], x: pt.x, y: pt.y, str: st[0], c: st[1], f: st[2] }); }
   else if (dr.tool === 'text') {
-    var nm = addMark({ t: 'text', box: true, x: Math.min(pt.x, 0.68), y: Math.min(pt.y, 0.93), w: 0.3, h: (TEXT_PT[CK.thick] * 1.45 + 6) * pgScale(page()) / page().ptH, str: '', s: TEXT_PT[CK.thick], c: toolColor('text') });
+    var nm = addMark({ t: 'text', box: true, x: Math.min(pt.x, 0.9), y: Math.min(pt.y, 0.95), w: 0.08, w0: 0.08, h: (TEXT_PT[CK.thick] * 1.45 + 6) * pgScale(page()) / page().ptH, str: '', s: TEXT_PT[CK.thick], c: toolColor('text') });
     var nta = $('notes').querySelector('[data-id="' + nm.id + '"] textarea'); if (nta) nta.focus();
   }
 }
