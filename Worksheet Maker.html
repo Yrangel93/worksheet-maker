@@ -322,8 +322,7 @@ body:not(.showBoxes) .box:not(.act){border-color:transparent!important;backgroun
       <div class="lbl deskonly">Automatic, no checking</div>
       <div class="lbl deskonly">Save each file as</div>
       <label class="chk deskonly"><input type="radio" name="folFor" value="pdf" checked> Fillable PDF</label>
-      <label class="chk deskonly"><input type="radio" name="folFor" value="docx"> Word on a computer or iPad</label>
-      <label class="chk deskonly"><input type="radio" name="folFor" value="docxp"> Pages (Mac, iPhone, iPad)</label>
+      <label class="chk deskonly"><input type="radio" name="folFor" value="docx"> Word or Pages (computer, iPad, iPhone)</label>
       <label class="chk deskonly"><input type="radio" name="folFor" value="docxt"> Word Online (in a browser)</label>
       <button class="item deskonly" id="bConvDir"><b>Convert a whole folder</b>…</button>
       <label class="chk deskonly"><input type="checkbox" id="optStraight"> Also straighten every scan first</label>
@@ -382,8 +381,7 @@ body:not(.showBoxes) .box:not(.act){border-color:transparent!important;backgroun
     <div class="pop">
       <div class="lbl">Tick one or more</div>
       <label class="chk"><input type="checkbox" class="xk" value="pdf" checked> <b>PDF</b> (fillable, with teacher marks)</label>
-      <label class="chk"><input type="checkbox" class="xk" value="docx"> <b>Word</b> — computer or iPad</label>
-      <label class="chk"><input type="checkbox" class="xk" value="docxp"> <b>Word</b> — Pages (Mac, iPhone, iPad)</label>
+      <label class="chk"><input type="checkbox" class="xk" value="docx"> <b>Word</b> — Word or Pages (computer, iPad, iPhone)</label>
       <label class="chk"><input type="checkbox" class="xk" value="docxt"> <b>Word</b> — Word Online (browser)</label>
       <label class="chk"><input type="checkbox" class="xk" value="jpg"> <b>JPG pictures</b> (one per page)</label>
       <label class="chk"><input type="checkbox" class="xk" value="canva"> <b>Canva</b> (editable PDF)</label>
@@ -2856,7 +2854,7 @@ function makeJpgs(d) {
 }
 function outName(d, kind) {
   var base = baseName(d.name).replace(/ \((fillable|checked|editable[^)]*|student|Canva)\)$/, ''), marked = d.pages.some(function (p) { return (p.marks || []).length; });
-  return base + ({ pdf: marked ? ' (checked).pdf' : ' (fillable).pdf', docx: ' (editable, Word computer).docx', docxp: ' (editable, Pages).docx', docxt: ' (editable, Word Online).docx', canva: ' (Canva).pdf', html: ' (student).html' })[kind];
+  return base + ({ pdf: marked ? ' (checked).pdf' : ' (fillable).pdf', docx: ' (editable).docx', docxp: ' (editable, Pages).docx', docxt: ' (editable, Word Online).docx', canva: ' (Canva).pdf', html: ' (student).html' })[kind];
 }
 function makeFiles(d, kind) { // [{name, data}] for one file in one format
   if (kind === 'jpg') return makeJpgs(d);
