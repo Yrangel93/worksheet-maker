@@ -2769,9 +2769,16 @@ function makeDocx(d, tbl) {
         var lines = keep && b.v ? String(b.v).split('\n') : [''];
         var paras = lines.map(function (t) { return '<w:p><w:pPr><w:pStyle w:val="' + sk + '"/><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>' + rpr + '</w:pPr>' + '<w:r>' + rpr + '<w:t xml:space="preserve">' + xesc(t || ' ') + '</w:t></w:r>' + '</w:p>'; }).join('');
         if (tbl) { cells.push({ b: b, paras: paras }); return; }
-        runs += anchor(Math.round(b.x * cx), Math.round(b.y * cy), w, h, false,
-          '<a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:wsp><wps:cNvSpPr txBox="1"/><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + w + '" cy="' + h + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="DCFCE7"><a:alpha val="45000"/></a:srgbClr></a:solidFill><a:ln w="6350"><a:solidFill><a:srgbClr val="16A34A"/></a:solidFill><a:prstDash val="dash"/></a:ln></wps:spPr>' +
-          '<wps:txbx><w:txbxContent>' + paras + '</w:txbxContent></wps:txbx><wps:bodyPr rot="0" vert="horz" wrap="square" lIns="36000" tIns="0" rIns="36000" bIns="0" anchor="' + (b.multi ? 't' : 'b') + '" anchorCtr="0"><a:noAutofit/></wps:bodyPr></wps:wsp></a:graphicData>', 'Answer');
+        var FILL = '<a:solidFill><a:srgbClr val="DCFCE7"><a:alpha val="45000"/></a:srgbClr></a:solidFill><a:ln w="6350"><a:solidFill><a:srgbClr val="16A34A"/></a:solidFill><a:prstDash val="dash"/></a:ln>';
+        var tw = w;
+        if (!b.multi) { // the typing area runs on to the right (to the next box on the line, or the page edge): a long answer keeps going instead of wrapping inside the small box
+          var lim = 0.97; pg.boxes.forEach(function (o) { if (o !== b && o.x > b.x + b.w * 0.5 && Math.min(o.y + o.h, b.y + b.h) - Math.max(o.y, b.y) > Math.min(o.h, b.h) * 0.4) lim = Math.min(lim, o.x - 0.004); });
+          tw = Math.max(w, Math.round((lim - b.x) * cx));
+          runs += anchor(Math.round(b.x * cx), Math.round(b.y * cy), w, h, false, '<a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:wsp><wps:cNvSpPr/><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + w + '" cy="' + h + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>' + FILL + '</wps:spPr><wps:bodyPr/></wps:wsp></a:graphicData>', 'Box');
+        }
+        runs += anchor(Math.round(b.x * cx), Math.round(b.y * cy), tw, h, false,
+          '<a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:wsp><wps:cNvSpPr txBox="1"/><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + tw + '" cy="' + h + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>' + (b.multi ? FILL : '<a:noFill/><a:ln><a:noFill/></a:ln>') + '</wps:spPr>' +
+          '<wps:txbx><w:txbxContent>' + paras + '</w:txbxContent></wps:txbx><wps:bodyPr rot="0" vert="horz" wrap="square" lIns="36000" tIns="0" rIns="36000" bIns="0" anchor="' + (b.multi ? 't' : 'b') + '" anchorCtr="0">' + (b.multi ? '<a:noAutofit/>' : '<a:spAutoFit/>') + '</wps:bodyPr></wps:wsp></a:graphicData>', 'Answer');
       });
       var sect = '<w:sectPr><w:pgSz w:w="' + Math.round(pg.ptW * 20) + '" w:h="' + Math.round(pg.ptH * 20) + '"' + (pg.ptW > pg.ptH ? ' w:orient="landscape"' : '') + '/><w:pgMar w:top="0" w:right="0" w:bottom="0" w:left="0" w:header="0" w:footer="0" w:gutter="0"/></w:sectPr>';
       var last = i === d.pages.length - 1;
