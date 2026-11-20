@@ -1773,7 +1773,13 @@ function renderBoxes() {
 }
 function growBox(b, el, inp, pg, k, quiet) { // every box wraps and grows downward as the student types; Enter starts a new line
   var H = el.parentNode ? el.parentNode.clientHeight : 0; if (!H) return;
-  var lh = fontPt(b, pg) * k * 1.25, base = (b.h0 || b.h) * H;
+  var lh = fontPt(b, pg) * k * 1.25, base = (b.h0 || b.h) * H, Wd = el.parentNode.clientWidth;
+  if (Wd && !b.multi) { // the box first grows to the right as the answer gets longer (up to the page edge), then wraps and grows down
+    var w0 = b.w0 || b.w; inp.style.whiteSpace = 'pre'; inp.style.width = '0px';
+    var needW = inp.value ? (inp.scrollWidth + 10) / Wd : 0; inp.style.width = ''; inp.style.whiteSpace = '';
+    var nw = clamp(Math.max(needW, w0), w0, Math.max(w0, 0.97 - b.x));
+    if (Math.abs(nw - b.w) > 0.002) { if (!b.w0) b.w0 = b.w; b.w = nw; if (b.w <= b.w0 + 0.0005) { b.w = b.w0; delete b.w0; } place(el, b); }
+  }
   inp.style.paddingTop = '0px'; inp.style.height = '0px';
   var need = inp.scrollHeight; inp.style.height = '100%';
   if (need <= base + 1 || !inp.value) { inp.style.paddingTop = b.multi ? '0px' : Math.max(0, (el.clientHeight - lh) / 2) + 'px'; if (b.h0 && !inp.value) { b.h = b.h0; delete b.h0; place(el, b); } else if (b.h0 && need <= base + 1) { b.h = b.h0; delete b.h0; place(el, b); } return; }
