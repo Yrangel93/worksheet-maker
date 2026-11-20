@@ -261,7 +261,6 @@ body.test #stubar{display:flex}
 body.check.erasing #layer{visibility:visible;pointer-events:auto}
 body.check.erasing #marks{pointer-events:none}
 #checkbar #ckEye{margin-left:auto}
-body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
 #notes{position:absolute;inset:0;pointer-events:none}
 .note{position:absolute}
 .note textarea{width:100%;height:100%;box-sizing:border-box;margin:0;padding:2px;border:1.5px dashed #d97706;background:rgba(255,251,235,.55);resize:none;overflow:hidden;line-height:1.2;font-family:Helvetica,Arial,sans-serif;outline:0;pointer-events:auto;border-radius:2px}
@@ -294,6 +293,13 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
 }
 .short2{display:none}
 @media (max-width:1180px){.short2{display:inline}#pinfo{min-width:0!important;padding:0 4px}#nav #zoom{width:74px!important;min-width:0!important;max-width:74px}#bar{gap:5px}#bar .sep{margin:0}#nav{gap:4px}}
+#mode,#mode+.sep{display:none!important}
+#checkbar{display:flex!important}
+body.test .box .sm,body.test .box .bg{position:absolute;top:-24px;width:28px;height:22px;line-height:20px;text-align:center;background:#fff;border:1.5px solid var(--g5);border-radius:6px 6px 0 0;font-size:12px;font-weight:700;color:var(--g7);user-select:none;-webkit-user-select:none;display:none;z-index:3;cursor:pointer}
+body.test .box .sm{left:52px}
+body.test .box .bg{left:82px}
+body.test .box.act .sm,body.test .box.act .bg{display:block}
+@media (pointer:coarse){body.test .box .sm,body.test .box .bg{width:38px;height:30px;top:-32px;line-height:28px;font-size:15px} body.test .box .sm{left:76px} body.test .box .bg{left:116px}}
 </style>
 </head>
 <body class="test">
@@ -389,18 +395,9 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
   </div>
 </div>
 
-<div class="bar" id="stubar">
-  <span class="lbl2">Text</span>
-  <select id="tFont" class="btn" title="Type of text"><option value="sans">Sans (Arial)</option><option value="serif">Serif (Times)</option><option value="mono">Typewriter (Courier)</option></select>
-  <select id="tSize" class="btn" title="Text size"><option value="0">Auto</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option><option>14</option><option>16</option><option>18</option><option>20</option><option>24</option></select>
-  <button class="btn" id="tBold" title="Bold" aria-pressed="false" style="font-weight:800">B</button>
-  <div class="sep"></div>
-  <span class="lbl2">Color</span>
-  <span id="tColors"></span>
-  <span id="tInfo" class="lbl2"></span>
-</div>
-
 <div class="bar" id="checkbar">
+  <button class="btn tool on" data-tool="type" title="Type in the answer boxes; add, move or resize boxes">⌨<span class="long2"> Type</span></button>
+  <div class="sep"></div>
   <button class="btn tool" data-tool="select" title="Move mark: click one of your marks to move it (answer boxes are not moved)">↖ Move</button>
   <button class="btn danger" id="ckClear">Clear</button>
   <div class="sep"></div>
@@ -419,6 +416,17 @@ body.check #mFind,body.check #mFind+.sep,body.check #mClear{display:none}
   <select id="ckThick" class="btn" title="Thickness / size"><option value="0">S</option><option value="1" selected>M</option><option value="2">L</option></select>
   <button class="btn" id="ckEye" aria-pressed="false" title="Show or hide the answer boxes while you mark">👁<span class="long2"> Boxes</span></button>
 </div>
+<div class="bar" id="stubar">
+  <span class="lbl2">Text</span>
+  <select id="tFont" class="btn" title="Type of text"><option value="sans">Sans (Arial)</option><option value="serif">Serif (Times)</option><option value="mono">Typewriter (Courier)</option></select>
+  <select id="tSize" class="btn" title="Text size"><option value="0">Auto</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option><option>14</option><option>16</option><option>18</option><option>20</option><option>24</option></select>
+  <button class="btn" id="tBold" title="Bold" aria-pressed="false" style="font-weight:800">B</button>
+  <div class="sep"></div>
+  <span class="lbl2">Color</span>
+  <span id="tColors"></span>
+  <span id="tInfo" class="lbl2"></span>
+</div>
+
 
 <main>
   <aside id="side"><h3>Files</h3><div id="docs"></div></aside>
@@ -1362,7 +1370,7 @@ function boxCol(b) { return /^#[0-9a-f]{6}$/i.test(b.col || '') ? b.col : TCOLS[
 function fontPt(b, pg) { // text size in PDF points
   if (b.fs) return b.fs;
   var hPt = b.h * pg.ptH;
-  return b.multi ? clamp(Math.round(hPt * 0.3), 9, 11) : clamp(Math.round(hPt * 0.62), 8, 11);
+  return b.multi ? clamp(Math.round(hPt * 0.3), 11, 13) : clamp(Math.round(hPt * 0.62), 11, 14);
 }
 function baseName(n) { return n.replace(/\.[a-z0-9]+$/i, ''); }
 var MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1712,12 +1720,12 @@ function render() {
   $('docs').innerHTML = h || '<p style="color:var(--mut);font-size:13px">No files open.</p>';
   document.body.classList.toggle('multi', has && (doc().pages.length > 1 || S.docs.length > 1));
   if (!has) { $('pinfo').textContent = '–'; renderProps(); return; }
-  $('pinfo').innerHTML = '<span class="long2">Page </span>' + (S.p + 1) + '<span class="long2"> of </span><span class="short2"> / </span>' + doc().pages.length; $('pgInfo').textContent = (S.p + 1) + ' / ' + doc().pages.length;
+  $('pinfo').innerHTML = '<span class="long2">Page&nbsp;</span>' + (S.p + 1) + '<span class="long2">&nbsp;of&nbsp;</span><span class="short2"> / </span>' + doc().pages.length; $('pgInfo').textContent = (S.p + 1) + ' / ' + doc().pages.length;
   $('bPrev').disabled = S.p === 0 && S.d === 0; $('bNext').disabled = S.p === doc().pages.length - 1 && S.d === S.docs.length - 1;
   $('pgPrev').disabled = $('bPrev').disabled; $('pgNext').disabled = $('bNext').disabled;
   if ($('pimg').getAttribute('src') !== pg.url) $('pimg').src = pg.url;
   $('pagewrap').style.aspectRatio = pg.w + ' / ' + pg.h;
-  $('bClean').textContent = pg.cleaned && !pg.straightOnly ? 'Undo clean of this page' : 'Clean scan — this page'; $('bStr').textContent = pg.cleaned ? 'Undo straighten of this page' : 'Straighten — this page';
+  $('bClean').textContent = pg.cleaned && !pg.straightOnly ? 'Undo clean of this page' : 'Clean scan — this page'; $('bStr').textContent = pg.straightOnly ? 'Undo straighten of this page' : 'Straighten — this page';
   layout(); renderBoxes(); renderMarks(); renderProps();
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -1748,7 +1756,7 @@ function renderBoxes() {
         S.sel = [b.id]; L.querySelectorAll('.box.act').forEach(function (q) { q.classList.remove('act'); }); el.classList.add('act'); renderProps();
       };
       el.appendChild(inp);
-      ['mv', 'rm', 'h'].forEach(function (cl) { var q = document.createElement('div'); q.className = cl; q.textContent = cl === 'mv' ? '⠿' : cl === 'rm' ? '×' : ''; q.title = cl === 'mv' ? 'Drag to move' : cl === 'rm' ? 'Delete this box' : 'Drag to resize'; el.appendChild(q); });
+      ['mv', 'rm', 'h', 'sm', 'bg'].forEach(function (cl) { var q = document.createElement('div'); q.className = cl; q.textContent = cl === 'mv' ? '⠿' : cl === 'rm' ? '×' : cl === 'sm' ? 'A−' : cl === 'bg' ? 'A+' : ''; q.title = cl === 'mv' ? 'Drag to move' : cl === 'rm' ? 'Delete this box' : cl === 'sm' ? 'Smaller text' : cl === 'bg' ? 'Bigger text' : 'Drag to resize'; el.appendChild(q); });
     } else { inp.readOnly = true; inp.tabIndex = -1; el.appendChild(inp); setTimeout(function () { growBox(b, el, inp, pg, k, true); }, 0); } // Teacher mode: boxes are only shown
     L.appendChild(el);
   });
@@ -1792,6 +1800,16 @@ $('layer').addEventListener('pointerdown', function (e) {
   var pg = page(), el = e.target.closest('.box'), pt = rel(e);
   if (S.mode === 'test' && !S.erase) { // add boxes, and move, resize or delete them with the small handles
     var cl = e.target.classList;
+    if (el && (cl.contains('sm') || cl.contains('bg'))) { // text size: the box grows or shrinks with it
+      e.preventDefault();
+      var tb = pg.boxes.filter(function (b) { return b.id === el.dataset.id; })[0]; if (!tb) return;
+      snap([pg]); var f0 = fontPt(tb, pg), f1 = clamp(f0 + (cl.contains('bg') ? 2 : -2), 6, 40);
+      if (f1 === f0) return;
+      tb.fs = f1; tb.h = clamp(tb.h * f1 / f0, 0.008, 1 - tb.y);
+      S.sel = [tb.id]; render(); save();
+      var ni = $('layer').querySelector('.box[data-id="' + tb.id + '"] input, .box[data-id="' + tb.id + '"] textarea'); if (ni) ni.focus();
+      return;
+    }
     if (el && cl.contains('rm')) {
       var victim = pg.boxes.filter(function (b) { return b.id === el.dataset.id; })[0];
       var go = function () { snap([pg]); pg.boxes = pg.boxes.filter(function (b) { return b !== victim; }); S.sel = []; render(); save(); };
@@ -2418,6 +2436,18 @@ function cleanPixels(d, W, H, frames) {
     var near = ig[(y1 + 1) * W1 + x1 + 1] - ig[y0 * W1 + x1 + 1] - ig[(y1 + 1) * W1 + x0] + ig[y0 * W1 + x0];
     if (!near) for (var k = 0; k < px.length; k++) kill[px[k]] = 1;
   });
+  (function () { // black scanner shadows and smudges that touch the page edge: everything dark joined to the edge, within a narrow band
+    var bx = Math.round(W * 0.04), by = Math.round(H * 0.03), st = [], seen = new Uint8Array(N), x, y, q;
+    var push = function (q) { if (!seen[q] && ink[q] > lo) { seen[q] = 1; st.push(q); } };
+    for (x = 0; x < W; x++) { push(x); push(W + x); push((H - 1) * W + x); push((H - 2) * W + x); }
+    for (y = 0; y < H; y++) { push(y * W); push(y * W + 1); push(y * W + W - 1); push(y * W + W - 2); }
+    while (st.length) {
+      q = st.pop(); var qx = q % W, qy = (q - qx) / W;
+      if (qx > bx && qx < W - 1 - bx && qy > by && qy < H - 1 - by) continue; // left the edge band: stop there
+      if (!pic[q]) kill[q] = 1;
+      if (qx > 0) push(q - 1); if (qx < W - 1) push(q + 1); if (qy > 0) push(q - W); if (qy < H - 1) push(q + W);
+    }
+  })();
   (function () { // the scanner's border line right at the edge of the page: a thin dark rule along most of an edge
     [[0, 1, true], [W - 1, -1, true], [0, 1, false], [H - 1, -1, false]].forEach(function (e) {
       var vert = e[2], L = vert ? H : W, D = Math.round((vert ? W : H) * 0.015), deep = -1, a, b;
@@ -2493,6 +2523,7 @@ function uncleanPage(pg) {
 function straighten(scope) {
   var pages = allPages(scope), i = 0, n = 0;
   if (!pages.length) return;
+  if (scope === 'page' && page().straightOnly) { var up = page(); snap([up]); return busy('Undoing…').then(function () { return uncleanPage(up); }).then(function () { idle(); render(); save(); toast('Straighten undone.'); }, function (e) { console.error(e); idle(); }); }
   snap(pages);
   return busy('Straightening…').then(function step() {
     if (i >= pages.length) return;
@@ -2937,6 +2968,8 @@ $('bDel').onclick = delSel; $('bDup').onclick = dupSel;
 $('bErase').onclick = function () { setErase(!S.erase); };
 $('checkbar').addEventListener('click', function (e) {
   var b = e.target.closest('[data-tool]'), sw = e.target.closest('[data-c]');
+  if (b && b.dataset.tool === 'type') { if (S.mode !== 'test') document.querySelector('#mode [data-mode="test"]').click(); return; } // typing in the boxes
+  if (b && S.mode !== 'check') { CK.tool = b.dataset.tool; document.querySelector('#mode [data-mode="check"]').click(); }
   if (b) setTool(b.dataset.tool);
   if (sw) { if (CK.tool === 'hl') CK.hl = sw.dataset.c; else CK.colors[CK.tool] = sw.dataset.c; swatches(); }
 });
@@ -3029,8 +3062,8 @@ $('mode').onclick = function (e) {
   S.mode = m; S.sel = []; S.msel = null; setErase(false); document.body.classList.remove('edit', 'test', 'check'); document.body.classList.add(m);
   this.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === m); });
   render();
-  if (m === 'check') { showBoxes(true); setTool(CK.tool); toast('Teacher mode: pick a tool, then click or draw on the worksheet. Export saves a PDF with your marks.', 6000); }
-  if (m === 'test') { var f = $('layer').querySelector('input,textarea'); if (f) f.focus(); toast('Student mode: type in the boxes. Click a box to see its handles: ⠿ move, corner resize, × delete.', 5000); }
+  if (m === 'check') { showBoxes(true); setTool(CK.tool === 'type' ? 'check' : CK.tool); }
+  if (m === 'test') document.querySelectorAll('#checkbar [data-tool]').forEach(function (b) { b.classList.toggle('on', b.dataset.tool === 'type'); });
 };
 $('docs').onclick = function (e) {
   var x = e.target.closest('[data-x]'), dn = e.target.closest('[data-d]'), th = e.target.closest('[data-p]');
