@@ -342,9 +342,9 @@ body:not(.showBoxes) .box:not(.act){border-color:transparent!important;backgroun
       <button class="item" id="bStr" title="Turns a crooked scan level. Your boxes move with the page.">Straighten — this page</button>
       <button class="item" id="bStrFile">Straighten all pages of this file</button>
       <hr>
-      <div class="lbl">Clean scan (white background + straighten)</div>
-      <button class="item" id="bClean" title="Makes the gray, speckled background white and straightens the page">Clean scan — this page</button>
-      <button class="item" id="bCleanFile">Clean all pages of this file</button>
+      <div class="lbl">Clean + straighten (white background, level page)</div>
+      <button class="item" id="bClean" title="Makes the gray, speckled background white and straightens the page">Clean + straighten — this page</button>
+      <button class="item" id="bCleanFile">Clean + straighten all pages of this file</button>
     </div>
   </div>
   <div class="sep"></div>
@@ -1733,7 +1733,7 @@ function render() {
   $('pgPrev').disabled = $('bPrev').disabled; $('pgNext').disabled = $('bNext').disabled;
   if ($('pimg').getAttribute('src') !== pg.url) $('pimg').src = pg.url;
   $('pagewrap').style.aspectRatio = pg.w + ' / ' + pg.h;
-  $('bClean').textContent = pg.cleaned && !pg.straightOnly ? 'Undo clean of this page' : 'Clean scan — this page'; $('bStr').textContent = pg.straightOnly ? 'Undo straighten of this page' : 'Straighten — this page';
+  $('bClean').textContent = pg.cleaned && !pg.straightOnly ? 'Undo clean + straighten of this page' : 'Clean + straighten — this page'; $('bStr').textContent = pg.straightOnly ? 'Undo straighten of this page' : 'Straighten — this page';
   layout(); renderBoxes(); renderMarks(); renderProps();
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -2164,7 +2164,7 @@ function findLines(scope) {
     idle(); S.sel = []; if (S.mode === 'check') showBoxes(true);
     render(); save();
     var msg = total ? 'Found ' + total + ' answer line' + (total === 1 ? '' : 's') + (pages.length > 1 ? ' on ' + pages.length + ' pages' : '') + '.' : 'No answer lines found. Try "More" in the ▾ menu, or add the boxes by hand.';
-    if (tilted) msg += ' Tip: this scan is tilted — press Undo, then "Clean scan", then try again for straighter boxes.';
+    if (tilted) msg += ' Tip: this scan is tilted — press Undo, then "Clean + straighten", then try again for straighter boxes.';
     toast(msg, tilted ? 8000 : 4000);
   });
 }
