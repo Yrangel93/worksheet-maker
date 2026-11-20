@@ -1367,10 +1367,11 @@ var FAMS = { sans: ['Arial, Helvetica, sans-serif', 'Helvetica', 'Arial'], serif
 var TCOLS = ['#0a2a8c', '#111111', '#15803d', '#6d28d9', '#92400e'];
 function boxFam(b) { return FAMS[b.ff] ? b.ff : 'sans'; }
 function boxCol(b) { return /^#[0-9a-f]{6}$/i.test(b.col || '') ? b.col : TCOLS[0]; }
+function pgScale(pg) { return pg && pg.ptW > 700 ? pg.ptW / 612 : 1; } // a scan saved as a huge PDF page: sizes are kept the same as on a letter page
 function fontPt(b, pg) { // text size in PDF points
   if (b.fs) return b.fs;
-  var hPt = b.h * pg.ptH;
-  return b.multi ? clamp(Math.round(hPt * 0.3), 11, 13) : clamp(Math.round(hPt * 0.62), 11, 14);
+  var sc = pgScale(pg), hPt = b.h * pg.ptH / sc;
+  return sc * (b.multi ? clamp(Math.round(hPt * 0.3), 11, 13) : clamp(Math.round(hPt * 0.62), 11, 14));
 }
 function baseName(n) { return n.replace(/\.[a-z0-9]+$/i, ''); }
 var MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1803,9 +1804,11 @@ $('layer').addEventListener('pointerdown', function (e) {
     if (el && (cl.contains('sm') || cl.contains('bg'))) { // text size: the box grows or shrinks with it
       e.preventDefault();
       var tb = pg.boxes.filter(function (b) { return b.id === el.dataset.id; })[0]; if (!tb) return;
-      snap([pg]); var f0 = fontPt(tb, pg), f1 = clamp(f0 + (cl.contains('bg') ? 2 : -2), 6, 40);
+      var sc = pgScale(pg); snap([pg]); var f0 = fontPt(tb, pg), f1 = clamp(f0 + (cl.contains('bg') ? 2 : -2) * sc, 6 * sc, 40 * sc);
       if (f1 === f0) return;
-      tb.fs = f1; tb.h = clamp(tb.h * f1 / f0, 0.008, 1 - tb.y);
+      tb.fs = f1;
+      var need = (f1 * 1.35 + 4 * sc) / pg.ptH, bot = tb.y + tb.h; // the box stays on its line: only as tall as the text needs, growing upward
+      if (!tb.multi || need > tb.h) { tb.h = Math.min(need, bot); tb.y = bot - tb.h; }
       S.sel = [tb.id]; render(); save();
       var ni = $('layer').querySelector('.box[data-id="' + tb.id + '"] input, .box[data-id="' + tb.id + '"] textarea'); if (ni) ni.focus();
       return;
@@ -1955,39 +1958,39 @@ function wrapText(str, maxW, size, measure) {
   return out;
 }
 function markShapes(m, pg, measure) {
-  var X = m.x * pg.ptW, Y = m.y * pg.ptH, out = { paths: [], texts: [] }, s = m.s || 22, k;
+  var X = m.x * pg.ptW, Y = m.y * pg.ptH, out = { paths: [], texts: [] }, sc = pgScale(pg), s = (m.s || 22) * sc, k;
   function f(n) { return Math.round(n * 100) / 100; }
   function ell(cx, cy, rx, ry) { var q = 0.5523; return 'M' + f(cx - rx) + ' ' + f(cy) + ' C' + f(cx - rx) + ' ' + f(cy - q * ry) + ' ' + f(cx - q * rx) + ' ' + f(cy - ry) + ' ' + f(cx) + ' ' + f(cy - ry) + ' C' + f(cx + q * rx) + ' ' + f(cy - ry) + ' ' + f(cx + rx) + ' ' + f(cy - q * ry) + ' ' + f(cx + rx) + ' ' + f(cy) + ' C' + f(cx + rx) + ' ' + f(cy + q * ry) + ' ' + f(cx + q * rx) + ' ' + f(cy + ry) + ' ' + f(cx) + ' ' + f(cy + ry) + ' C' + f(cx - q * rx) + ' ' + f(cy + ry) + ' ' + f(cx - rx) + ' ' + f(cy + q * ry) + ' ' + f(cx - rx) + ' ' + f(cy) + ' Z'; }
   if (m.t === 'cstamp') { // a round "checked" stamp
-    out.paths.push({ d: ell(X, Y, s * 0.8, s * 0.8), stroke: GOLD, w: 1.8, fill: WARN_BG, fop: 0.95 });
+    out.paths.push({ d: ell(X, Y, s * 0.8, s * 0.8), stroke: GOLD, w: 1.8 * sc, fill: WARN_BG, fop: 0.95 });
     out.paths.push({ d: 'M' + f(X - 0.4 * s) + ' ' + f(Y + 0.02 * s) + ' L' + f(X - 0.12 * s) + ' ' + f(Y + 0.32 * s) + ' L' + f(X + 0.42 * s) + ' ' + f(Y - 0.36 * s), stroke: '#15803d', w: s * 0.15 });
     return out;
   }
   if (m.t === 'check') out.paths.push({ d: 'M' + f(X - 0.45 * s) + ' ' + f(Y) + ' L' + f(X - 0.15 * s) + ' ' + f(Y + 0.35 * s) + ' L' + f(X + 0.5 * s) + ' ' + f(Y - 0.5 * s), stroke: m.c, w: s * 0.14 });
   else if (m.t === 'cross') out.paths.push({ d: 'M' + f(X - 0.4 * s) + ' ' + f(Y - 0.4 * s) + ' L' + f(X + 0.4 * s) + ' ' + f(Y + 0.4 * s) + ' M' + f(X + 0.4 * s) + ' ' + f(Y - 0.4 * s) + ' L' + f(X - 0.4 * s) + ' ' + f(Y + 0.4 * s), stroke: m.c, w: s * 0.14 });
-  else if (m.t === 'rect') { var hw = m.w * pg.ptW / 2, hh2 = m.h * pg.ptH / 2; out.paths.push({ d: 'M' + f(X - hw) + ' ' + f(Y - hh2) + ' L' + f(X + hw) + ' ' + f(Y - hh2) + ' L' + f(X + hw) + ' ' + f(Y + hh2) + ' L' + f(X - hw) + ' ' + f(Y + hh2) + ' Z', stroke: m.c, w: m.lw || 2 }); }
+  else if (m.t === 'rect') { var hw = m.w * pg.ptW / 2, hh2 = m.h * pg.ptH / 2; out.paths.push({ d: 'M' + f(X - hw) + ' ' + f(Y - hh2) + ' L' + f(X + hw) + ' ' + f(Y - hh2) + ' L' + f(X + hw) + ' ' + f(Y + hh2) + ' L' + f(X - hw) + ' ' + f(Y + hh2) + ' Z', stroke: m.c, w: (m.lw || 2) * sc }); }
   else if (m.t === 'line' || m.t === 'arrow') {
     var X2 = m.x2 * pg.ptW, Y2 = m.y2 * pg.ptH, dl = 'M' + f(X2) + ' ' + f(Y2) + ' L' + f(X) + ' ' + f(Y);
     if (m.t === 'arrow') { // the point is at (X,Y), the tail at (X2,Y2)
       var ang = Math.atan2(Y - Y2, X - X2), hl2 = Math.max(9, (m.lw || 2) * 4.5), a1 = ang + Math.PI * 0.83, a2 = ang - Math.PI * 0.83;
       dl += ' M' + f(X + hl2 * Math.cos(a1)) + ' ' + f(Y + hl2 * Math.sin(a1)) + ' L' + f(X) + ' ' + f(Y) + ' L' + f(X + hl2 * Math.cos(a2)) + ' ' + f(Y + hl2 * Math.sin(a2));
     }
-    out.paths.push({ d: dl, stroke: m.c, w: m.lw || 2 });
+    out.paths.push({ d: dl, stroke: m.c, w: (m.lw || 2) * sc });
   }
   else if (m.t === 'oval') {
     var rx = m.w * pg.ptW / 2, ry = m.h * pg.ptH / 2, q = 0.5523;
-    out.paths.push({ d: 'M' + f(X - rx) + ' ' + f(Y) + ' C' + f(X - rx) + ' ' + f(Y - q * ry) + ' ' + f(X - q * rx) + ' ' + f(Y - ry) + ' ' + f(X) + ' ' + f(Y - ry) + ' C' + f(X + q * rx) + ' ' + f(Y - ry) + ' ' + f(X + rx) + ' ' + f(Y - q * ry) + ' ' + f(X + rx) + ' ' + f(Y) + ' C' + f(X + rx) + ' ' + f(Y + q * ry) + ' ' + f(X + q * rx) + ' ' + f(Y + ry) + ' ' + f(X) + ' ' + f(Y + ry) + ' C' + f(X - q * rx) + ' ' + f(Y + ry) + ' ' + f(X - rx) + ' ' + f(Y + q * ry) + ' ' + f(X - rx) + ' ' + f(Y) + ' Z', stroke: m.c, w: m.lw || 2 });
+    out.paths.push({ d: 'M' + f(X - rx) + ' ' + f(Y) + ' C' + f(X - rx) + ' ' + f(Y - q * ry) + ' ' + f(X - q * rx) + ' ' + f(Y - ry) + ' ' + f(X) + ' ' + f(Y - ry) + ' C' + f(X + q * rx) + ' ' + f(Y - ry) + ' ' + f(X + rx) + ' ' + f(Y - q * ry) + ' ' + f(X + rx) + ' ' + f(Y) + ' C' + f(X + rx) + ' ' + f(Y + q * ry) + ' ' + f(X + q * rx) + ' ' + f(Y + ry) + ' ' + f(X) + ' ' + f(Y + ry) + ' C' + f(X - q * rx) + ' ' + f(Y + ry) + ' ' + f(X - rx) + ' ' + f(Y + q * ry) + ' ' + f(X - rx) + ' ' + f(Y) + ' Z', stroke: m.c, w: (m.lw || 2) * sc });
   } else if (m.t === 'pen' || m.t === 'hl') {
     var d = '';
     for (k = 0; k < m.pts.length; k++) d += (k ? ' L' : 'M') + f(m.pts[k][0] * pg.ptW) + ' ' + f(m.pts[k][1] * pg.ptH);
     if (m.pts.length === 1) d += ' L' + f(m.pts[0][0] * pg.ptW + 0.1) + ' ' + f(m.pts[0][1] * pg.ptH);
-    out.paths.push({ d: d, stroke: m.c, w: m.lw, op: m.t === 'hl' ? 0.38 : 1 });
+    out.paths.push({ d: d, stroke: m.c, w: m.lw * sc, op: m.t === 'hl' ? 0.38 : 1 });
   } else if (m.t === 'text' && m.box) {
     wrapText(m.str || '', m.w * pg.ptW - 6, s, measure).forEach(function (ln, i) { if (ln) out.texts.push({ x: X + 3, y: Y + 2 + s * 0.95 + i * s * 1.2, str: ln, size: s, color: m.c, bold: false }); });
   } else if (m.t === 'text') out.texts.push({ x: X, y: Y, str: m.str, size: s, color: m.c, bold: false });
   else if (m.t === 'stamp') {
     var size = m.s || 12, tw = measure(m.str, size, true), w = tw + 14, hh = size + 10;
-    out.paths.push({ d: 'M' + f(X - w / 2) + ' ' + f(Y - hh / 2) + ' L' + f(X + w / 2) + ' ' + f(Y - hh / 2) + ' L' + f(X + w / 2) + ' ' + f(Y + hh / 2) + ' L' + f(X - w / 2) + ' ' + f(Y + hh / 2) + ' Z', stroke: m.f ? GOLD : m.c, w: 1.6, fill: m.f || '#ffffff', fop: m.f ? 0.95 : 0.88 });
+    out.paths.push({ d: 'M' + f(X - w / 2) + ' ' + f(Y - hh / 2) + ' L' + f(X + w / 2) + ' ' + f(Y - hh / 2) + ' L' + f(X + w / 2) + ' ' + f(Y + hh / 2) + ' L' + f(X - w / 2) + ' ' + f(Y + hh / 2) + ' Z', stroke: m.f ? GOLD : m.c, w: 1.6 * sc, fill: m.f || '#ffffff', fop: m.f ? 0.95 : 0.88 });
     out.texts.push({ x: X - tw / 2, y: Y + size * 0.36, str: m.str, size: size, color: m.c, bold: true });
   }
   return out;
@@ -2019,7 +2022,7 @@ function renderNotes() {
   (pg.marks || []).forEach(function (m) {
     if (!(m.t === 'text' && m.box)) return;
     var el = document.createElement('div'); el.className = 'note'; el.dataset.id = m.id; place(el, m);
-    var ta = document.createElement('textarea'); ta.value = m.str || ''; ta.spellcheck = false; ta.style.fontSize = ((m.s || 14) * k) + 'px'; ta.style.color = m.c;
+    var ta = document.createElement('textarea'); ta.value = m.str || ''; ta.spellcheck = false; ta.style.fontSize = ((m.s || 14) * pgScale(pg) * k) + 'px'; ta.style.color = m.c;
     var pre = null;
     ta.onfocus = function () { pre = JSON.stringify(pg.marks); el.classList.add('act'); };
     var fit = function () { ta.style.height = '0px'; var need = ta.scrollHeight + 2, H = $('marks').getBoundingClientRect().height; ta.style.height = '100%'; if (H && need > el.clientHeight + 1) { m.h = Math.min(need / H, 1 - m.y); place(el, m); } };
@@ -2115,7 +2118,7 @@ function mend(e) {
   if (dr.tool === 'check') addMark({ t: 'check', x: pt.x, y: pt.y, s: SIZE[CK.thick], c: toolColor('check') });
   else if (dr.tool === 'stamp') { var st = STAMPS[+$('ckStamp').value]; addMark({ t: 'stamp', s: STAMP_PT[CK.thick], x: pt.x, y: pt.y, str: st[0], c: st[1], f: st[2] }); }
   else if (dr.tool === 'text') {
-    var nm = addMark({ t: 'text', box: true, x: Math.min(pt.x, 0.68), y: Math.min(pt.y, 0.93), w: 0.3, h: (TEXT_PT[CK.thick] * 1.45 + 6) / page().ptH, str: '', s: TEXT_PT[CK.thick], c: toolColor('text') });
+    var nm = addMark({ t: 'text', box: true, x: Math.min(pt.x, 0.68), y: Math.min(pt.y, 0.93), w: 0.3, h: (TEXT_PT[CK.thick] * 1.45 + 6) * pgScale(page()) / page().ptH, str: '', s: TEXT_PT[CK.thick], c: toolColor('text') });
     var nta = $('notes').querySelector('[data-id="' + nm.id + '"] textarea'); if (nta) nta.focus();
   }
 }
