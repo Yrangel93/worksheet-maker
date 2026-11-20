@@ -163,7 +163,7 @@ body.erasing .box:not(.erase){pointer-events:none;opacity:.35}
 
 #marks{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
 body.check #marks{pointer-events:auto}
-body.check #layer{visibility:hidden}
+body.check #layer{visibility:visible;pointer-events:none}
 #marks .hit{pointer-events:stroke}
 #marks g path[fill="transparent"]{pointer-events:all}
 #marks text{pointer-events:all;user-select:none;-webkit-user-select:none}
@@ -300,6 +300,8 @@ body.test .box .sm{left:52px}
 body.test .box .bg{left:82px}
 body.test .box.act .sm,body.test .box.act .bg{display:block}
 @media (pointer:coarse){body.test .box .sm,body.test .box .bg{width:38px;height:30px;top:-32px;line-height:28px;font-size:15px} body.test .box .sm{left:76px} body.test .box .bg{left:116px}}
+/* Boxes button: outlines on or off; answers always show */
+body:not(.showBoxes) .box:not(.act){border-color:transparent!important;background:transparent!important}
 </style>
 </head>
 <body class="test">
@@ -3016,6 +3018,7 @@ $('ckClear').onclick = function () { var pg = page(); if (!pg || !(pg.marks || [
 
 function showBoxes(on) { document.body.classList.toggle('showBoxes', !!on); $('ckEye').classList.toggle('on', !!on); $('ckEye').setAttribute('aria-pressed', on ? 'true' : 'false'); }
 $('ckEye').onclick = function () { showBoxes(!document.body.classList.contains('showBoxes')); };
+showBoxes(true);
 $('bAdd').onclick = function () {
   var pg = page(); if (!pg) return;
   if (S.mode === 'check') document.querySelector('#mode [data-mode="test"]').click(); // boxes are edited in Student mode: switch there, press Teacher mode to go back to marking
@@ -3065,7 +3068,7 @@ $('mode').onclick = function (e) {
   S.mode = m; S.sel = []; S.msel = null; setErase(false); document.body.classList.remove('edit', 'test', 'check'); document.body.classList.add(m);
   this.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === m); });
   render();
-  if (m === 'check') { showBoxes(true); setTool(CK.tool === 'type' ? 'check' : CK.tool); }
+  if (m === 'check') { setTool(CK.tool === 'type' ? 'check' : CK.tool); }
   if (m === 'test') document.querySelectorAll('#checkbar [data-tool]').forEach(function (b) { b.classList.toggle('on', b.dataset.tool === 'type'); });
 };
 $('docs').onclick = function (e) {
