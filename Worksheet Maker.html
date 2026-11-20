@@ -2135,6 +2135,12 @@ function mend(e) {
   if (dr.tool === 'check') addMark({ t: 'check', x: pt.x, y: pt.y, s: SIZE[CK.thick], c: toolColor('check') });
   else if (dr.tool === 'stamp') { var st = STAMPS[+$('ckStamp').value]; addMark({ t: 'stamp', s: STAMP_PT[CK.thick], x: pt.x, y: pt.y, str: st[0], c: st[1], f: st[2] }); }
   else if (dr.tool === 'text') {
+    var hitBox = pg.boxes.filter(function (b) { return pt.x >= b.x && pt.x <= b.x + b.w && pt.y >= b.y && pt.y <= b.y + b.h; })[0];
+    if (hitBox) { // a tap on an answer box: type in that box
+      document.querySelector('#mode [data-mode="test"]').click();
+      var bi = $('layer').querySelector('.box[data-id="' + hitBox.id + '"] textarea, .box[data-id="' + hitBox.id + '"] input'); if (bi) { bi.focus(); try { bi.setSelectionRange(bi.value.length, bi.value.length); } catch (er) {} }
+      return;
+    }
     var nm = addMark({ t: 'text', box: true, x: Math.min(pt.x, 0.9), y: Math.min(pt.y, 0.95), w: 0.08, w0: 0.08, h: (TEXT_PT[CK.thick] * 1.45 + 6) * pgScale(page()) / page().ptH, str: '', s: TEXT_PT[CK.thick], c: toolColor('text') });
     var nta = $('notes').querySelector('[data-id="' + nm.id + '"] textarea'); if (nta) nta.focus();
   }
