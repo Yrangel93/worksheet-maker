@@ -1440,7 +1440,7 @@ function restore() {
       jobs.push(getBlob(p.id).then(function (b) { if (b) { p.blob = b; p.url = URL.createObjectURL(b); } }));
     }); });
     return Promise.all(jobs).then(function () {
-      st.docs.forEach(function (d) { d.pages = d.pages.filter(function (p) { return p.blob; }); });
+      st.docs.forEach(function (d) { d.pages = d.pages.filter(function (p) { return p.blob; }); d.pages.forEach(normSize); });
       S.docs = st.docs.filter(function (d) { return d.pages.length; });
       S.d = clamp(st.d || 0, 0, Math.max(0, S.docs.length - 1)); S.p = clamp(st.p || 0, 0, doc() ? doc().pages.length - 1 : 0);
       if (S.docs.length) toast('Your last work was restored.');
@@ -1475,7 +1475,14 @@ function doRedo() {
 
 /* ---------- opening files ---------- */
 var PAGE_PX = 1654; // A4 at 200 dpi: sharp enough to print, small enough to send
+function normSize(p) { // a scan saved as a giant (or tiny) PDF page is given a normal letter/A4 page size; the picture keeps every pixel, only the paper size changes
+  var m = Math.min(p.ptW, p.ptH); if (!m || (m >= 500 && m <= 700)) return;
+  var f = 612 / m; p.ptW *= f; p.ptH *= f;
+  (p.boxes || []).forEach(function (b) { if (b.fs) b.fs *= f; });
+  (p.marks || []).forEach(function (q) { if (q.s) q.s *= f; if (q.lw) q.lw *= f; });
+}
 function addPage(d, canvas, ptW, ptH) {
+  var nz = { ptW: ptW, ptH: ptH }; normSize(nz); ptW = nz.ptW; ptH = nz.ptH;
   return canvasBlob(canvas, 0.88).then(function (blob) {
     var p = { id: nid(), w: canvas.width, h: canvas.height, ptW: ptW, ptH: ptH, blob: blob, url: URL.createObjectURL(blob), boxes: [], cleaned: false };
     d.pages.push(p); p.fast = !!d._fast; if (d.temp) return; return putBlob(p.id, blob);
