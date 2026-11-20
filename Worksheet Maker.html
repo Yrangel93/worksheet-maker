@@ -1823,7 +1823,7 @@ $('layer').addEventListener('pointerdown', function (e) {
       if (f1 === f0) return;
       tb.fs = f1;
       var need = (f1 * 1.35 + 4 * sc) / pg.ptH, bot = tb.y + tb.h; // the box stays on its line: only as tall as the text needs, growing upward
-      delete tb.h0; if (!tb.multi || need > tb.h) { tb.h = Math.min(need, bot); tb.y = bot - tb.h; }
+      delete tb.h0; if (tb.w0) { tb.w = tb.w0; delete tb.w0; } if (!tb.multi || need > tb.h) tb.h = Math.min(need, 1 - tb.y); // the top-left corner stays put: the box grows down and to the right
       S.sel = [tb.id]; render(); save();
       var ni = $('layer').querySelector('.box[data-id="' + tb.id + '"] input, .box[data-id="' + tb.id + '"] textarea'); if (ni) ni.focus();
       return;
