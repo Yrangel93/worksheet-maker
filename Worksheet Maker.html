@@ -380,15 +380,13 @@ body:not(.showBoxes) .box:not(.act){border-color:transparent!important;backgroun
     <button class="btn main" data-menu>Export ▾</button>
     <div class="pop">
       <div class="lbl">Tick one or more</div>
-      <label class="chk"><input type="checkbox" class="xk" value="pdf" checked> <b>PDF</b> (fillable, with teacher marks)</label>
-      <label class="chk"><input type="checkbox" class="xk" value="docx"> <b>Word</b> — Word or Pages (computer, iPad, iPhone)</label>
+      <label class="chk"><input type="checkbox" class="xk" value="docx" checked> <b>Word</b> — Word or Pages (computer, iPad, iPhone)</label>
       <label class="chk"><input type="checkbox" class="xk" value="docxt"> <b>Word</b> — Word Online (browser)</label>
+      <label class="chk"><input type="checkbox" class="xk" value="pdf"> <b>PDF</b> (fillable, with teacher marks)</label>
       <label class="chk"><input type="checkbox" class="xk" value="jpg"> <b>JPG pictures</b> (one per page)</label>
       <label class="chk"><input type="checkbox" class="xk" value="canva"> <b>Canva</b> (editable PDF)</label>
       <button class="item" id="xGo"><b>Export — this file</b></button>
       <button class="item" id="xGoAll"><b>Export — all open files</b> (one ZIP)</button>
-      <hr>
-      <button class="item" id="xShare"><b>Share PDF</b> (WhatsApp, Mail…) — this file</button>
       <hr>
       <label class="chk"><input type="checkbox" id="keepTest" checked> Include typed answers</label>
     </div>
@@ -398,7 +396,7 @@ body:not(.showBoxes) .box:not(.act){border-color:transparent!important;backgroun
 <div class="bar" id="checkbar">
   <button class="btn tool on" data-tool="type" title="Type in the answer boxes; add, move or resize boxes">⌨<span class="long2"> Type</span></button>
   <div class="sep"></div>
-  <button class="btn tool" data-tool="select" title="Move mark: click one of your marks to move it (answer boxes are not moved)">↖ Move</button>
+  <button class="btn tool" data-tool="select" title="Move mark: click one of your marks to move it (answer boxes are not moved)">↖ Move marks</button>
   <button class="btn danger" id="ckClear">Clear</button>
   <div class="sep"></div>
   <button class="btn tool" data-tool="pen" title="Pencil: draw freely">✎ <span class="long2">Pen</span></button>
@@ -3101,7 +3099,6 @@ $('bNew').onclick = function () {
 };
 $('xGo').onclick = function () { exportPick(false); };
 $('xGoAll').onclick = function () { exportPick(true); };
-$('xShare').onclick = function () { closeMenus(); exportShare(); };
 ['bStr', 'bStrFile', 'bClean', 'bCleanFile', 'bDel', 'bDup', 'bClearPage', 'bClearFile', 'bClearTest'].forEach(function (id) { $(id).addEventListener('click', closeMenus); });
 
 var menuT = 0;
