@@ -1037,8 +1037,13 @@ function findAnswerLines(rgba, W, H, opt) {
   var allT = lines.map(function (l) { return l.thick; }).sort(function (p, q) { return p - q; });
   var medT = allT.length ? allT[allT.length >> 1] : 1;
   stats.heavy = 0; stats.text = 0;
+  var all4c = lines.slice();
+  function nameRow(l) { // Student's / Teacher's Name rows at the top: the second rule is often printed heavier, but it is still a line to write on
+    if (l.y > H * 0.22 || l.thick > Math.max(10, W * 0.008) || l.x2 - l.x1 < W * 0.25) return false;
+    return all4c.some(function (o) { return o !== l && Math.abs(o.y - l.y) > H * 0.008 && Math.abs(o.y - l.y) < H * 0.05 && Math.abs(o.x1 - l.x1) < W * 0.03 && o.x2 - o.x1 > W * 0.2 && o.thick <= Math.max(medT * 2, medT + 3); });
+  }
   lines = lines.filter(function (l) {
-    if (l.thick > Math.max(medT * 2, medT + 3) || l.thick > Math.max(7, W * 0.005)) { stats.heavy++; return false; } // too thick to be an answer line (a rule, a border, or a row of letters)
+    if ((l.thick > Math.max(medT * 2, medT + 3) || l.thick > Math.max(7, W * 0.005)) && !nameRow(l)) { stats.heavy++; return false; } // too thick to be an answer line (a rule, a border, or a row of letters)
     if (l.x2 - l.x1 > W * 0.5 && ((l.y > H * 0.945 && l.thick >= Math.max(3, W * 0.002)) || (l.y > H * 0.85 && l.thick >= Math.max(4, W * 0.0028)))) { stats.heavy++; return false; } // rule that closes the page at the bottom
     return true;
   });
@@ -1233,7 +1238,7 @@ function findAnswerLines(rgba, W, H, opt) {
       // a place to write must be (almost) empty: this drops edges inside drawings and photos
       var inkN = 0, allN = 0;
       for (y = Math.round(bottom - h); y < bottom - 1; y += 2) for (x = x1; x <= x2; x += 2) { allN++; if (inkAt(x, y)) inkN++; }
-      if (allN && inkN / allN > 0.1) { stats.pictures = (stats.pictures || 0) + 1; return; }
+      if (allN && inkN / allN > (s.l.tall ? 0.25 : bottom < H * 0.2 && x2 - x1 > W * 0.4 ? 0.16 : 0.1)) { /* name rows at the top can show print from the back of the sheet */ stats.pictures = (stats.pictures || 0) + 1; return; }
       if (x2 - x1 < W * 0.06) { // a very short "line" in a busy spot is part of a drawing
         var vals = [], yb0 = Math.round(bottom - hNom), busy = 0;
         for (y = yb0; y < bottom + hNom * 0.6; y += 2) for (x = x1; x <= x2; x += 2) if (y >= 0 && y < H) vals.push(ink[y * W + x]);
@@ -2388,7 +2393,7 @@ function mend(e) {
   if (DRAGT.indexOf(dr.tool) >= 0) {
     var mk = dr.mark, r2 = $('marks').getBoundingClientRect();
     var clicked = false;
-    if ((dr.tool === 'oval' || dr.tool === 'rect') && (mk.w < 0.01 || mk.h < 0.004)) { mk.x = dr.start.x; mk.y = dr.start.y; mk.w = 80 / pg.ptW; mk.h = 26 / pg.ptH; clicked = true; } // a click: a ready-made shape around the spot
+    if ((dr.tool === 'oval' || dr.tool === 'rect') && (mk.w < 0.01 || mk.h < 0.004)) { mk.x = dr.start.x; mk.y = dr.start.y; var dsz = dr.tool === 'oval' ? [36, 36] : [80, 26]; mk.w = dsz[0] / pg.ptW; mk.h = dsz[1] / pg.ptH; clicked = true; /* circle: a round one */ } // a click: a ready-made shape around the spot
     if (dr.tool === 'line' && Math.abs(mk.x2 - mk.x) * r2.width + Math.abs(mk.y2 - mk.y) * r2.height < 8) { mk.x = dr.start.x - 35 / pg.ptW; mk.y = dr.start.y; mk.x2 = dr.start.x + 35 / pg.ptW; mk.y2 = dr.start.y; clicked = true; }
     if (clicked || dr.tool === 'oval' || dr.tool === 'rect' || dr.tool === 'line' || dr.tool === 'arrow') S.msel = mk.id; // shows the corner handle to resize it
     if (dr.tool === 'arrow' && Math.abs(mk.x2 - mk.x) * r2.width + Math.abs(mk.y2 - mk.y) * r2.height < 8) { mk.x2 = mk.x + 46 / pg.ptW; mk.y2 = mk.y - 30 / pg.ptH; } // a click: default direction
@@ -2562,7 +2567,8 @@ function cleanPixels(d, W, H, frames) {
     var anchors = pb.filter(function (c) { return c.x1 - c.x0 >= 0.25 * W && c.y1 - c.y0 >= 0.3 * H && (c.y1 >= 0.82 * H || c.x1 >= 0.9 * W); }), mg = W * 0.01;
     pb.forEach(function (c) {
       if (!anchors.some(function (a) { return c === a || (c.x0 >= a.x0 - mg && c.x1 <= a.x1 + mg && c.y0 >= a.y0 - mg && c.y1 <= a.y1 + mg); })) return;
-      for (var j = 0; j < c.l.length; j++) if (M2[c.l[j]] && ink[c.l[j]] <= 1.55 * T) whiten(c.l[j]);
+      var topY = Math.round(H * 0.12) * W; // the printed header band at the top is never part of the big letter
+      for (var j = 0; j < c.l.length; j++) if (c.l[j] >= topY && M2[c.l[j]] && ink[c.l[j]] <= 1.55 * T) whiten(c.l[j]);
     });
   })();
   // 1b. the cartoon pencil printed over some writing lines: a thick blob that answer lines run under. Erased, the lines are redrawn.
@@ -2680,7 +2686,10 @@ function cleanPixels(d, W, H, frames) {
       if (sts[sts.length >> 1] > D * 0.008) return; // it starts in from the edge: a printed frame line, not a scan shadow
       ends.sort(function (p, q) { return p - q; });
       var core = ends[ends.length >> 1];                              // typical depth of the band
+      var keepR = new Uint8Array(L), lastCap = -1e9, gapC = Math.round(L * 0.07); // rows dark all the way in are print that reaches the edge (the header band):
+      for (i = 0; i < L; i++) if (s0[i] >= 0 && e0[i] >= cap - 1) { if (i - lastCap <= gapC) for (var kr = lastCap; kr <= i; kr++) keepR[kr] = 1; keepR[i] = 1; lastCap = i; } // those rows and the rows between them (the logo) are kept
       for (i = 0; i < L; i++) {
+        if (keepR[i]) continue;
         var upto = s0[i] >= 0 ? Math.max(e0[i], core) : core;
         for (dd = 0; dd <= upto; dd++) { var q = at(i, dd); if (ink[q] > lo && !hline[q]) { ink[q] = 0; d[q * 4] = d[q * 4 + 1] = d[q * 4 + 2] = 255; } }
       }
