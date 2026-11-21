@@ -55,7 +55,7 @@ main{flex:1;display:flex;min-height:0}
 .doc .dn .x:hover{color:var(--red)}
 .thumbs{padding:6px 4px 2px 10px}
 .thumb{position:relative;border:2px solid var(--line);border-radius:6px;margin-bottom:8px;cursor:pointer;overflow:hidden;background:#fff}
-.thumb.cur{border-color:var(--g5)}
+.thumb.cur{border:5px solid var(--g7,#15803d);box-shadow:0 0 0 3px rgba(34,197,94,.45)}
 .thumb img{display:block;width:100%}
 .thumb b{position:absolute;left:4px;top:4px;background:var(--g8);color:#fff;font-size:11px;border-radius:4px;padding:1px 5px}
 .thumb i{position:absolute;right:4px;bottom:4px;background:#fff;border:1px solid var(--g5);color:var(--g7);font-style:normal;font-size:11px;border-radius:4px;padding:0 5px}
@@ -318,6 +318,14 @@ svg.lasso polygon{fill:rgba(239,68,68,.15);stroke:#dc2626;stroke-width:2;stroke-
 #checkbar .menu{display:inline-flex;align-items:center;position:relative}#checkbar .menu>.btn+.btn{margin-left:-1px;padding:0 7px}
 
 .mvpiece,.mvhole{position:absolute;pointer-events:none}.mvpiece{outline:2px dashed #15803d;outline-offset:1px;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:5}.mvhole{z-index:4}
+
+.ghost{position:relative;margin:18px auto 0;box-shadow:0 2px 14px rgba(15,61,36,.2);background:#fff;cursor:pointer;user-select:none;-webkit-user-select:none}
+.ghost img{display:block;width:100%;height:100%;pointer-events:none}
+.ghost .gb{position:absolute;border:1px solid rgba(29,78,216,.35);background:rgba(219,234,254,.25);overflow:hidden;white-space:pre-wrap;line-height:1.15;padding:0 2px;color:#111;font-family:Arial,sans-serif;pointer-events:none}
+body.check .ghost .gb{border:0;background:none}
+#pagewrap{margin-top:18px}
+body.multi #pagewrap{outline:4px solid var(--g5,#22c55e);outline-offset:3px}
+#stage>.ghost:last-child,#stage>#pagewrap:last-child{margin-bottom:24px}
 </style>
 </head>
 <body class="test">
@@ -1799,15 +1807,48 @@ function render() {
   });
   $('docs').innerHTML = h || '<p style="color:var(--mut);font-size:13px">No files open.</p>';
   document.body.classList.toggle('multi', has && (doc().pages.length > 1 || S.docs.length > 1));
-  if (!has) { $('pinfo').textContent = '–'; renderProps(); return; }
+  if (!has) { $('stage').querySelectorAll('.ghost').forEach(function (g) { g.remove(); }); GH.key = ''; $('pinfo').textContent = '–'; renderProps(); return; }
   $('pinfo').innerHTML = '<span class="long2">Page&nbsp;</span>' + (S.p + 1) + '<span class="long2">&nbsp;of&nbsp;</span><span class="short2"> / </span>' + doc().pages.length; $('pgInfo').textContent = (S.p + 1) + ' / ' + doc().pages.length;
   $('bPrev').disabled = S.p === 0 && S.d === 0; $('bNext').disabled = S.p === doc().pages.length - 1 && S.d === S.docs.length - 1;
   $('pgPrev').disabled = $('bPrev').disabled; $('pgNext').disabled = $('bNext').disabled;
   if ($('pimg').getAttribute('src') !== pg.url) $('pimg').src = pg.url;
   $('pagewrap').style.aspectRatio = pg.w + ' / ' + pg.h;
   $('bClean').textContent = pg.cleaned && !pg.straightOnly ? 'Undo clean of this page' : 'Clean — this page'; $('bStr').textContent = pg.straightOnly ? 'Undo straighten of this page' : 'Straighten — this page';
-  layout(); renderBoxes(); renderMarks(); renderProps();
+  layout(); renderBoxes(); renderMarks(); renderProps(); syncGhosts();
 }
+/* ---------- all pages in one scroll: the other pages are pictures, the one in view is the live page ---------- */
+var GH = { key: '', shown: '', fromScroll: false };
+function ghostFill(g, p) {
+  var w = g.clientWidth || $('pagewrap').clientWidth, k = w / p.ptW, h = '<img loading="lazy" src="' + p.url + '">';
+  p.boxes.forEach(function (b) { h += '<div class="gb" style="left:' + b.x * 100 + '%;top:' + b.y * 100 + '%;width:' + b.w * 100 + '%;height:' + b.h * 100 + '%;font-size:' + ((b.fs || 12) * k).toFixed(1) + 'px">' + esc(b.v || '') + '</div>'; });
+  g.innerHTML = h; g.dataset.u = p.url + '|' + p.boxes.length;
+}
+function syncGhosts() {
+  var st = $('stage'), d = doc(), pw = $('pagewrap'), key = S.d + ':' + d.pages.map(function (p) { return p.id; }).join(',');
+  if (GH.key !== key) { st.querySelectorAll('.ghost').forEach(function (g) { g.remove(); }); GH.key = key; GH.shown = '';
+    d.pages.forEach(function (p, i) { var g = document.createElement('div'); g.className = 'ghost'; g.dataset.p = i; st.appendChild(g); }); }
+  var w = pw.style.width, ghosts = st.querySelectorAll('.ghost');
+  ghosts.forEach(function (g, i) { var p = d.pages[i]; g.style.width = w; g.style.aspectRatio = p.w + ' / ' + p.h; g.classList.toggle('hide', i === S.p);
+    if (i !== S.p && g.dataset.u !== p.url + '|' + p.boxes.length + (g.dataset.stale ? 'x' : '')) { ghostFill(g, p); delete g.dataset.stale; } if (i === S.p) g.dataset.stale = '1'; });
+  if (pw.nextSibling !== ghosts[S.p].nextSibling || pw.previousSibling !== ghosts[S.p]) st.insertBefore(pw, ghosts[S.p].nextSibling);
+  var now = S.d + ':' + S.p;
+  if (GH.shown !== now) { var first = !GH.shown; GH.shown = now;
+    if (!GH.fromScroll) st.scrollTop = first && S.p === 0 ? 0 : pw.offsetTop - 12;
+    var th = document.querySelector('.thumb.cur'); if (th) th.scrollIntoView({ block: 'nearest' }); }
+  GH.fromScroll = false;
+}
+var ghT = 0;
+$('stage').addEventListener('scroll', function () {
+  if (drag || !page() || S.mv) return; clearTimeout(ghT);
+  ghT = setTimeout(function () {
+    var st = $('stage'), mid = st.scrollTop + st.clientHeight * 0.4, best = S.p, bd = 1e9;
+    [$('pagewrap')].concat([].slice.call(st.querySelectorAll('.ghost:not(.hide)'))).forEach(function (el) {
+      var c = el.offsetTop + el.offsetHeight / 2, dd = Math.abs(c - mid); if (mid >= el.offsetTop && mid <= el.offsetTop + el.offsetHeight) dd = 0;
+      if (dd < bd) { bd = dd; best = el.id === 'pagewrap' ? S.p : +el.dataset.p; } });
+    if (best !== S.p) { var a = document.activeElement; if (a && a.blur && $('pagewrap').contains(a)) a.blur(); S.p = best; S.sel = []; GH.fromScroll = true; render(); save(); }
+  }, 90);
+}, { passive: true });
+$('stage').addEventListener('click', function (e) { var g = e.target.closest && e.target.closest('.ghost'); if (g) go(S.d, +g.dataset.p); });
 function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 function layout() {
   var pg = page(); if (!pg) return;
@@ -1877,7 +1918,7 @@ function renderProps() {
   document.body.classList.toggle('hasSel', sel.length > 0 && S.mode === 'edit');
   $('bErase').disabled = $('bAdd').disabled = !pg;
 }
-function go(d, p) { S.d = d; S.p = p; S.sel = []; document.body.classList.remove('showSide'); render(); $('stage').scrollTop = 0; save(); }
+function go(d, p) { S.d = d; S.p = p; S.sel = []; document.body.classList.remove('showSide'); render(); save(); }
 
 /* ---------- editing with the mouse ---------- */
 var drag = null, tap = null;
