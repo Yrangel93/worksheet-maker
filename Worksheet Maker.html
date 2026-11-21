@@ -1981,7 +1981,7 @@ $('layer').addEventListener('pointerdown', function (e) {
     drag = { type: resize ? 'resize' : 'move', start: pt, moved: false, orig: selBoxes().map(function (b) { return { b: b, x: b.x, y: b.y, w: b.w, h: b.h }; }), before: JSON.stringify(pg.boxes) };
     renderBoxes(); renderProps();
   } else {
-    drag = { type: 'draw', start: pt, moved: false, before: JSON.stringify(pg.boxes) };
+    drag = { type: 'draw', start: pt, moved: false, before: JSON.stringify(pg.boxes), hadSel: S.sel.length > 0 };
     var g = document.createElement('div'); g.className = 'box draw'; drag.el = g; $('layer').appendChild(g);
   }
 });
@@ -2004,7 +2004,7 @@ $('layer').addEventListener('pointermove', function (e) {
   }
 });
 function endDrag(e) {
-  if (!drag) { if (tap && e.type === 'pointerup' && Math.abs(e.clientX - tap.x) + Math.abs(e.clientY - tap.y) < 10 && S.sel.length) { S.sel = []; render(); } tap = null; return; }
+  if (!drag) { if (tap && e.type === 'pointerup' && Math.abs(e.clientX - tap.x) + Math.abs(e.clientY - tap.y) < 10) { clickBox(page(), rel(e)); } tap = null; return; }
   var pg = page(), dr = drag; drag = null;
   if (dr.type === 'mvpiece') { if (dr.moved) commitMove(); return; }
   if (dr.type === 'erase') {
@@ -2020,11 +2020,12 @@ function endDrag(e) {
     if (dr.moved && b.w > 0.012 && b.h > 0.005) {
       undo.push([{ id: pg.id, boxes: dr.before }]);
       if (b.h * pg.ptH > 40) b.multi = true; // tall box = paragraph answer
-      pg.boxes.push(b); S.sel = [b.id]; save();
-    } else S.sel = [];
+      pg.boxes = pg.boxes.filter(function (o) { return !(o.tmp && !String(o.v || '').trim()); }); pg.boxes.push(b); S.sel = [b.id]; save();
+    } else if (!dr.moved) { clickBox(pg, dr.start); return; }
+    else S.sel = [];
     render();
     if (S.mode === 'test' && dr.moved) { var ni = $('layer').querySelector('[data-id="' + b.id + '"] input, [data-id="' + b.id + '"] textarea'); if (ni) ni.focus(); }
-  } else if (dr.moved) { dr.orig.forEach(function (o) { o.b.auto = false; }); undo.push([{ id: pg.id, boxes: dr.before }]); save(); render(); }
+  } else if (dr.moved) { dr.orig.forEach(function (o) { o.b.auto = false; delete o.b.tmp; }); undo.push([{ id: pg.id, boxes: dr.before }]); save(); render(); }
 }
 $('layer').addEventListener('pointerup', endDrag);
 $('layer').addEventListener('pointercancel', endDrag);
@@ -2051,6 +2052,14 @@ function dupSel() {
   var dy = Math.max.apply(null, sel.map(function (b) { return b.h; })) + 0.006, ids = [];
   sel.forEach(function (b) { var c = JSON.parse(JSON.stringify(b)); c.id = nid(); c.v = ''; delete c.auto; if (c.y + dy + c.h <= 1) c.y += dy; else c.x = Math.min(c.x + 0.02, 1 - c.w); pg.boxes.push(c); ids.push(c.id); });
   S.sel = ids; render(); save();
+}
+function clickBox(pg, pt) { // a click on empty paper: a ready-made box to type in (drag instead for a custom size)
+  if (!pg) return;
+  var h = 0.024, x = Math.max(0, pt.x - 0.01), w = Math.min(0.3, 1 - x); if (w < 0.08) { w = 0.08; x = 0.92; }
+  var b = { id: nid(), x: x, y: clamp(pt.y - h / 2, 0, 1 - h), w: w, h: h, multi: false, fs: 0, v: '', tmp: 1 };
+  snap([pg]); pg.boxes = pg.boxes.filter(function (o) { return !(o.tmp && !String(o.v || '').trim()); }); // the last click-box left empty goes away
+  pg.boxes.push(b); S.sel = [b.id]; render(); save();
+  var ni = $('layer').querySelector('[data-id="' + b.id + '"] input, [data-id="' + b.id + '"] textarea'); if (ni) ni.focus({ preventScroll: true });
 }
 function delSel() { var pg = page(); if (!S.sel.length) return; snap([pg]); pg.boxes = pg.boxes.filter(function (b) { return S.sel.indexOf(b.id) < 0; }); S.sel = []; render(); save(); }
 
