@@ -410,11 +410,11 @@ body.test .box.act .vw{display:block}
   <button class="btn tool on" data-tool="type" title="Type in the answer boxes; add, move or resize boxes">⌨<span class="long2"> Type</span></button>
   <div class="sep"></div>
   <button class="btn tool" data-tool="select" title="Move mark: click one of your marks to move it (answer boxes are not moved)">↖ Move marks</button>
-  <button class="btn danger" id="ckClear">Clear</button>
+  <button class="btn danger" id="ckClear">Clear all marks</button>
   <div class="sep"></div>
   <button class="btn tool" data-tool="pen" title="Pencil: draw freely">✎ <span class="long2">Pen</span></button>
   <button class="btn tool" data-tool="hl" title="Highlighter">▮ <span class="long2">Highlight</span></button>
-  <button class="btn tool" data-tool="erase" title="Eraser: click or drag over marks to rub them out">⌫ <span class="long2">Eraser</span></button>
+  <button class="btn tool" data-tool="erase" title="Eraser: click or drag over marks to rub them out">⌫ <span class="long2">Erase marks</span></button>
   <button class="btn" id="bErase" title="Erase background: Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">Erase background</button>
   <div class="sep"></div>
   <button class="btn tool" data-tool="check" title="Check mark: click to place it">✓</button>
@@ -670,13 +670,28 @@ function findExtras(rgba, ink, W, H) {
       });
     });
     var dg = add.filter(function (b) { return b.k === 'diagram'; });
+    (function () { // a tight stack of small labels (4-8 on the hand): each gets a full-height box, laid out downward; the overlap pass below then moves the next label (9) down
+      var used = [];
+      dg.slice().sort(function (p, q) { return p.y - q.y; }).forEach(function (a) {
+        if (used.indexOf(a) >= 0) return;
+        var st = [a], last = a;
+        dg.slice().sort(function (p, q) { return p.y - q.y; }).forEach(function (c) { if (c !== last && used.indexOf(c) < 0 && st.indexOf(c) < 0 && Math.abs(c.x + c.w - (last.x + last.w)) < 0.01 && Math.abs(c.x - last.x) < 0.01 && c.y > last.y && c.y - (last.y + last.h) < 0.006 && c.h < 0.017) { st.push(c); last = c; } });
+        if (st.length < 3) return;
+        var y = st[0].y; st.forEach(function (c) { c.y = y; c.h = Math.max(c.h, 0.0158); y += c.h + 0.0015; used.push(c); c.stk = 1; });
+        dg.slice().sort(function (p, q) { return p.y - q.y; }).forEach(function (c) { // the next label under the stack (9) moves down out of its way
+          if (c.stk || Math.min(c.x + c.w, a.x + a.w) - Math.max(c.x, a.x) <= 0 || c.y + c.h / 2 < st[0].y + st[0].h) return;
+          if (c.y < y) { c.y = y; y = c.y + c.h + 0.002; }
+        });
+      });
+    })();
     for (var it = 0; it < 30; it++) { // two labels close together (3 and the small 4 under it): the upper box gives way (shorter, then higher) so both keep a full box
       var moved = false;
       dg.forEach(function (a) { dg.forEach(function (b) {
-        if (a === b || (a.y + a.h / 2) > (b.y + b.h / 2)) return;
+        if (a === b || (a.y + a.h / 2) > (b.y + b.h / 2) || (a.stk && b.stk)) return;
         var ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), ov = a.y + a.h + 0.002 - b.y;
         if (ox <= 0 || ov <= 0.0005) return;
         var ta = Math.min(ov, Math.max(0, a.h - 0.018)); a.h -= ta; ov -= ta;
+        if (ov > 0 && b.h > a.h * 1.3 && !dg.some(function (c) { return c !== b && c.y > b.y && Math.min(c.x + c.w, b.x + b.w) - Math.max(c.x, b.x) > 0 && c.y < b.y + b.h + ov + 0.004; })) { b.y += ov; ov = 0; } // a big label under a small stack (9 under 4-8): it moves down instead
         if (ov > 0) a.y = Math.max(0, a.y - ov);
         moved = true;
       }); });
@@ -1151,7 +1166,7 @@ function findAnswerLines(rgba, W, H, opt) {
       var x1 = s.x1, x2 = s.x2, xm = (x1 + x2) / 2;
       var yy = s.yFix != null ? s.yFix : lineY(s.l, xm);           // line height at this part
       var drift = Math.abs((x2 - x1) * s.l.slope) / 2;                // tilt: keep box clear of the line
-      var bottom = yy + 2 - drift * 0.3; // the box sits right on the line (a smidge past it) so it is as tall as possible
+      var bottom = yy + Math.max(4, Math.round(H * 0.003)) - drift * 0.3; // the box sits right on the line (a smidge past it) so it is as tall as possible
       if (s.l.tall) { // Date box: start after the "Date:" label, then it may grow up to the header band
         var lastC = -1, bt = Math.round(bottom);
         for (x = x1; x < Math.min(x2, x1 + W * 0.12); x++) { var cc = 0; for (y = bt - Math.round(H * 0.02); y < bt - Math.round(H * 0.004); y++) if (inkAt(x, y)) cc++; if (cc >= 2) lastC = x; }
@@ -1159,7 +1174,8 @@ function findAnswerLines(rgba, W, H, opt) {
       }
       // free height above: go up until a row of print is met
       var maxUp = Math.round(H * 0.034), up = 0, prev = 0;
-      for (up = Math.round(H * 0.005); up < maxUp; up++) {
+      var below = Math.max(0, Math.round(bottom - yy)); maxUp += below;
+      for (up = below + Math.round(H * 0.005); up < maxUp; up++) { // start above the line itself
         var cnt = 0, ry = Math.round(bottom) - up;
         for (x = x1; x <= x2; x++) if (inkAt(x, ry)) cnt++;
         if (cnt >= 12 && prev >= 12) { up -= 1; break; }
@@ -2063,6 +2079,7 @@ function renderMarks() {
   }
   renderNotes();
 }
+var lastNote = null;
 function renderNotes() {
   var L = $('notes'), pg = page(); L.innerHTML = ''; if (!pg || S.mode !== 'check') return;
   var k = pxPerPt();
@@ -2071,7 +2088,7 @@ function renderNotes() {
     var el = document.createElement('div'); el.className = 'note'; el.dataset.id = m.id; place(el, m);
     var ta = document.createElement('textarea'); ta.value = m.str || ''; ta.spellcheck = false; ta.style.fontSize = ((m.s || 14) * pgScale(pg) * k) + 'px'; ta.style.color = m.c;
     var pre = null;
-    ta.onfocus = function () { pre = JSON.stringify(pg.marks); el.classList.add('act'); };
+    ta.onfocus = function () { pre = JSON.stringify(pg.marks); el.classList.add('act'); lastNote = m; };
     var fit = function () { // the note grows with the text: wider first (up to the page edge), then taller
       var R = $('marks').getBoundingClientRect(); if (!R.width) return;
       ta.style.whiteSpace = 'pre'; ta.style.width = '0px'; var needW = ta.scrollWidth + 8; ta.style.width = ''; ta.style.whiteSpace = '';
@@ -2278,6 +2295,12 @@ function cleanPixels(d, W, H, frames) {
     var minRun = Math.round(W * 0.02), x, y;
     for (y = 0; y < H; y++) { var run = 0; for (x = 0; x <= W; x++) { var on = x < W && ink[y * W + x] > 70; if (on) run++; else { if (run >= minRun) for (var k = x - run; k < x; k++) hline[y * W + k] = 1; run = 0; } } }
     for (x = 0; x < W; x++) { var vr = 0; for (y = 0; y <= H; y++) { var hv = y < H && hline[y * W + x]; if (hv) vr++; else { if (vr > 7) for (var k2 = y - vr; k2 < y; k2++) hline[k2 * W + x] = 0; vr = 0; } } } // thick bars are not lines
+  })();
+  var fline = new Uint8Array(N); // faint thin straight lines (the pointer lines of a labelled picture): the white-paper step must not wipe them
+  (function () {
+    var thr = Math.max(10, lo * 0.55), minRun = Math.round(W * 0.03), x, y;
+    for (y = 0; y < H; y++) { var run = 0, gapR = 0; for (x = 0; x <= W; x++) { var on = x < W && ink[y * W + x] > thr; if (on) { run += 1 + gapR; gapR = 0; } else if (run && gapR < 2 && x < W) gapR++; else { if (run >= minRun) for (var k = x - run - gapR; k < x - gapR; k++) fline[y * W + k] = 1; run = 0; gapR = 0; } } }
+    for (x = 0; x < W; x++) { var vr = 0; for (y = 0; y <= H; y++) { var hv = y < H && fline[y * W + x]; if (hv) vr++; else { if (vr > 5) for (var k2 = y - vr; k2 < y; k2++) fline[k2 * W + x] = 0; vr = 0; } } } // only thin lines, not filled shapes
   })();
   function whiten(q) { if (pic[q] || hline[q]) return; ink[q] = 0; d[q * 4] = d[q * 4 + 1] = d[q * 4 + 2] = 255; }
   var SK = cleanPixels.skip || {};
@@ -2538,6 +2561,7 @@ function cleanPixels(d, W, H, frames) {
   })();
   for (i = 0; i < N; i++) {
     var v = ink[i], j = i * 4;
+    if (fline[i] && v > 6 && !kill[i]) { var gl = 1.6; d[j] = Math.max(0, 255 - (255 - d[j]) * gl); d[j + 1] = Math.max(0, 255 - (255 - d[j + 1]) * gl); d[j + 2] = Math.max(0, 255 - (255 - d[j + 2]) * gl); continue; } // a faint thin line (a label's pointer line): kept and made clearer
     if (pic[i]) { // inside a picture: keep every shade, a bit stronger
       if (v <= 4) { d[j] = d[j + 1] = d[j + 2] = 255; continue; }
       d[j] = Math.max(0, 255 - (255 - d[j]) * 1.3); d[j + 1] = Math.max(0, 255 - (255 - d[j + 1]) * 1.3); d[j + 2] = Math.max(0, 255 - (255 - d[j + 2]) * 1.3);
@@ -3061,7 +3085,8 @@ $('checkbar').addEventListener('click', function (e) {
   if (b && b.dataset.tool === 'type') { if (S.mode !== 'test') document.querySelector('#mode [data-mode="test"]').click(); return; } // typing in the boxes
   if (b && S.mode !== 'check') { CK.tool = b.dataset.tool; document.querySelector('#mode [data-mode="check"]').click(); }
   if (b) setTool(b.dataset.tool);
-  if (sw) { if (CK.tool === 'hl') CK.hl = sw.dataset.c; else CK.colors[CK.tool] = sw.dataset.c; swatches(); }
+  if (sw) { if (CK.tool === 'hl') CK.hl = sw.dataset.c; else CK.colors[CK.tool] = sw.dataset.c; swatches();
+    var lp = page(); if (CK.tool === 'text' && lastNote && lp && (lp.marks || []).indexOf(lastNote) >= 0) { snap([lp]); lastNote.c = sw.dataset.c; renderMarks(); save(); var nt = $('notes').querySelector('[data-id="' + lastNote.id + '"] textarea'); if (nt) nt.focus(); } } // recolour the note being written
 });
 var NBUILT = STAMPS.length, CUST = [];
 try { CUST = JSON.parse(localStorage.getItem('wmStamps') || '[]'); } catch (e) { CUST = []; }
