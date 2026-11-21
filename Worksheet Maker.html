@@ -311,6 +311,9 @@ body:not(.showBoxes) .box:not(.act){border-color:transparent!important;backgroun
 body.test .box .vw{position:absolute;top:-24px;left:112px;width:28px;height:22px;line-height:20px;text-align:center;background:#fff;border:1.5px solid var(--g5);border-radius:6px 6px 0 0;font-size:13px;color:var(--g7);user-select:none;-webkit-user-select:none;display:none;z-index:3;cursor:pointer}
 body.test .box.act .vw{display:block}
 @media (pointer:coarse){body.test .box .vw{width:38px;height:30px;top:-32px;line-height:28px;font-size:16px;left:156px}}
+svg.lasso{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+svg.lasso polygon{fill:rgba(239,68,68,.15);stroke:#dc2626;stroke-width:2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}
+#eShape{width:auto;padding:0 6px}
 </style>
 </head>
 <body class="test">
@@ -347,13 +350,16 @@ body.test .box.act .vw{display:block}
   <div class="menu" id="mFind">
     <button class="btn main" id="bFind" title="Looks for the answer lines on all pages of this file and puts a box on each one">Find<span class="long2"> answer</span> lines</button><button class="btn" data-menu title="More options">▾</button>
     <div class="pop">
-      <div class="lbl">Straighten (turn a crooked scan level)</div>
-      <button class="item" id="bStr" title="Turns a crooked scan level. Your boxes move with the page.">Straighten — this page</button>
-      <button class="item" id="bStrFile">Straighten all pages of this file</button>
-      <hr>
-      <div class="lbl">Clean (white background, no dark edges)</div>
-      <button class="item" id="bClean" title="Makes the gray, speckled background white and removes the dark scan edges">Clean — this page</button>
-      <button class="item" id="bCleanFile">Clean all pages of this file</button>
+      <div class="lbl">Fix the scan — tick what you want</div>
+      <label class="chk"><input type="checkbox" id="co_str" checked> Straighten the page</label>
+      <label class="chk"><input type="checkbox" id="co_bg" checked> White background (gray paper)</label>
+      <label class="chk"><input type="checkbox" id="co_speck" checked> Remove little specks and dots</label>
+      <label class="chk"><input type="checkbox" id="co_edge" checked> Remove dark borders from scanning</label>
+      <label class="chk"><input type="checkbox" id="co_art" checked> Remove the big "A" and the pencil</label>
+      <button class="item" id="bFix"><b>Fix — this page</b></button>
+      <button class="item" id="bFixFile"><b>Fix — all pages of this file</b></button>
+      <button class="item" id="bUnfix">Undo — bring back the original scan of this page</button>
+      <span class="hide"><button id="bStr"></button><button id="bStrFile"></button><button id="bClean"></button><button id="bCleanFile"></button></span>
       <hr>
       <div class="lbl">Empty answer boxes (boxes with text stay)</div>
       <button class="item" id="bFClrP">Delete empty boxes — this page</button>
@@ -415,7 +421,7 @@ body.test .box.act .vw{display:block}
   <button class="btn tool" data-tool="pen" title="Pencil: draw freely">✎ <span class="long2">Pen</span></button>
   <button class="btn tool" data-tool="hl" title="Highlighter">▮ <span class="long2">Highlight</span></button>
   <button class="btn tool" data-tool="erase" title="Eraser: click or drag over marks to rub them out">⌫ <span class="long2">Erase marks</span></button>
-  <button class="btn" id="bErase" title="Erase background: Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">Erase background</button>
+  <button class="btn" id="bErase" title="Erase background: Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">Erase background</button><select id="eShape" class="btn" title="How to pick what to erase"><option value="rect">▭ Box</option><option value="lasso">➰ Lasso</option><option value="tap">✨ Tap a shape</option></select>
   <div class="sep"></div>
   <button class="btn tool" data-tool="check" title="Check mark: click to place it">✓</button>
   <button class="btn tool" data-tool="arrow" id="ckShapeBtn" title="Shape: drag to draw it">➜</button><select id="ckShape" class="btn" title="Which shape"><option value="arrow">➜ Arrow</option><option value="oval">◯ Circle</option><option value="rect">▢ Square</option><option value="line">／ Line</option></select>
@@ -1408,7 +1414,8 @@ function pgScale(pg) { return pg && pg.ptW > 700 ? pg.ptW / 612 : 1; } // a scan
 function fontPt(b, pg) { // text size in PDF points
   if (b.fs) return b.fs;
   var sc = pgScale(pg), hPt = b.h * pg.ptH / sc;
-  var f = b.multi ? clamp(Math.round(hPt * 0.3), 11, 13) : clamp(Math.round(hPt * 0.62), 11, 14);
+  var f = 12; // the same comfortable size everywhere: room to write a whole answer
+  if (!b.multi && hPt * 0.62 < 11) f = 11;
   if (!b.multi && pg.boxes) { // boxes stacked tight on top of each other (diagram labels 19-24): one text size for the stack, small enough to fit, so no box grows into the next
     var near = function (p, q) { return !q.multi && Math.min(q.x + q.w, p.x + p.w) - Math.max(q.x, p.x) > 0 && Math.abs((q.y + q.h / 2) - (p.y + p.h / 2)) < (p.h + q.h) / 2 + 0.008; };
     var grp = [b], gi = 0; while (gi < grp.length) { var cur = grp[gi++]; pg.boxes.forEach(function (o) { if (grp.indexOf(o) < 0 && near(cur, o)) grp.push(o); }); }
@@ -1755,7 +1762,7 @@ function openFiles(list) {
 function render() {
   var pg = page(), has = !!pg;
   $('empty').classList.toggle('hide', has); $('pagewrap').classList.toggle('hide', !has);
-  ['bFind', 'bClean', 'bStr', 'bUndo', 'bRedo', 'bPrev', 'bNext', 'bClearTest'].forEach(function (id) { $(id).disabled = !has; });
+  ['bFind', 'bClean', 'bStr', 'bFix', 'bFixFile', 'bUnfix', 'bUndo', 'bRedo', 'bPrev', 'bNext', 'bClearTest'].forEach(function (id) { $(id).disabled = !has; });
   document.querySelectorAll('#bar [data-menu]').forEach(function (b) { if (!b.closest('#mOpen')) b.disabled = !has; });
   // file list
   var h = '';
@@ -1886,8 +1893,11 @@ $('layer').addEventListener('pointerdown', function (e) {
   } else if (S.mode !== 'test' && !(S.mode === 'check' && S.erase)) return;
   if (S.erase) { // drag a rectangle over the part of the scan to wipe
     e.preventDefault(); $('layer').setPointerCapture(e.pointerId);
-    drag = { type: 'erase', start: pt, moved: false };
-    var ge = document.createElement('div'); ge.className = 'box draw erase'; drag.el = ge; $('layer').appendChild(ge);
+    var es = $('eShape').value;
+    if (es === 'tap') { eraseArea(pg, { pt: pt }); return; }
+    drag = { type: 'erase', start: pt, moved: false, shape: es, pts: [pt] };
+    if (es === 'lasso') { var sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('class', 'lasso'); sv.setAttribute('viewBox', '0 0 1000 1000'); sv.setAttribute('preserveAspectRatio', 'none'); sv.innerHTML = '<polygon points="" />'; drag.el = sv; $('layer').appendChild(sv); }
+    else { var ge = document.createElement('div'); ge.className = 'box draw erase'; drag.el = ge; $('layer').appendChild(ge); }
     return;
   }
   if (!el && e.pointerType === 'touch') { tap = { x: e.clientX, y: e.clientY }; return; }
@@ -1911,7 +1921,9 @@ $('layer').addEventListener('pointermove', function (e) {
   var pt = rel(e), dx = pt.x - drag.start.x, dy = pt.y - drag.start.y, r = $('layer').getBoundingClientRect();
   if (!drag.moved && Math.abs(dx * r.width) + Math.abs(dy * r.height) < 4) return;
   drag.moved = true;
-  if (drag.type === 'draw' || drag.type === 'erase') {
+  if (drag.type === 'erase' && drag.shape === 'lasso') {
+    drag.pts.push(pt); drag.el.firstChild.setAttribute('points', drag.pts.map(function (p) { return (p.x * 1000).toFixed(1) + ',' + (p.y * 1000).toFixed(1); }).join(' '));
+  } else if (drag.type === 'draw' || drag.type === 'erase') {
     place(drag.el, { x: Math.min(pt.x, drag.start.x), y: Math.min(pt.y, drag.start.y), w: Math.abs(dx), h: Math.abs(dy) });
   } else {
     drag.orig.forEach(function (o) {
@@ -1927,6 +1939,7 @@ function endDrag(e) {
   if (dr.type === 'erase') {
     var pe = rel(e), rc = { x: Math.min(pe.x, dr.start.x), y: Math.min(pe.y, dr.start.y), w: Math.abs(pe.x - dr.start.x), h: Math.abs(pe.y - dr.start.y) };
     if (dr.el) dr.el.remove();
+    if (dr.shape === 'lasso') { if (dr.moved && dr.pts.length > 4) eraseArea(pg, { poly: dr.pts }); return; }
     if (dr.moved && rc.w > 0.004 && rc.h > 0.003) eraseArea(pg, rc);
     return;
   }
@@ -1970,32 +1983,60 @@ function dupSel() {
 function delSel() { var pg = page(); if (!S.sel.length) return; snap([pg]); pg.boxes = pg.boxes.filter(function (b) { return S.sel.indexOf(b.id) < 0; }); S.sel = []; render(); save(); }
 
 /* ---------- erase area: wipe a part of the scan by hand ---------- */
-function eraseArea(pg, rc) {
-  var old = pg.blob, wasErase = S.erase;
+function paperColor(d, W, H, inside, bb) { // the paper colour just around an area (white on a cleaned page)
+  var px = [], m = 6;
+  for (var yy = Math.max(0, bb[1] - m); yy < Math.min(H, bb[3] + m); yy += 2) for (var xx = Math.max(0, bb[0] - m); xx < Math.min(W, bb[2] + m); xx += 2) {
+    if (inside(xx, yy)) continue; var k = (yy * W + xx) * 4; px.push([d[k] + d[k + 1] + d[k + 2], d[k], d[k + 1], d[k + 2]]);
+  }
+  if (px.length < 8) return [255, 255, 255];
+  px.sort(function (p, q) { return q[0] - p[0]; }); var t = px[Math.floor(px.length * 0.25)]; return [t[1], t[2], t[3]];
+}
+function eraseArea(pg, sp) { // sp: a rectangle {x,y,w,h}, a lasso {poly:[{x,y}...]} or a tap on a shape {pt:{x,y}}
+  var old = pg.blob, wasErase = S.erase, what = 'Erased.';
   return pageCanvas(pg).then(function (c) {
-    var x = c.getContext('2d'), W = c.width, H = c.height;
-    var x0 = Math.round(rc.x * W), y0 = Math.round(rc.y * H), w = Math.max(1, Math.round(rc.w * W)), h = Math.max(1, Math.round(rc.h * H));
-    // fill with the paper colour found just around the area (white on a cleaned page)
-    var m = 4, sx = Math.max(0, x0 - m), sy = Math.max(0, y0 - m), sw = Math.min(W, x0 + w + m) - sx, sh = Math.min(H, y0 + h + m) - sy;
-    var d = x.getImageData(sx, sy, sw, sh).data, px = [];
-    for (var yy = 0; yy < sh; yy += 2) for (var xx = 0; xx < sw; xx += 2) {
-      if (xx >= x0 - sx && xx < x0 - sx + w && yy >= y0 - sy && yy < y0 - sy + h) continue; // only the ring outside
-      var k = (yy * sw + xx) * 4; px.push([d[k] + d[k + 1] + d[k + 2], d[k], d[k + 1], d[k + 2]]);
+    var x = c.getContext('2d'), W = c.width, H = c.height, img = x.getImageData(0, 0, W, H), d = img.data, N = W * H, mask = new Uint8Array(N), i, xx, yy;
+    if (sp.poly) { // lasso: everything inside the loop
+      var P = sp.poly.map(function (p) { return [p.x * W, p.y * H]; }), bx0 = W, by0 = H, bx1 = 0, by1 = 0;
+      P.forEach(function (p) { bx0 = Math.min(bx0, p[0]); bx1 = Math.max(bx1, p[0]); by0 = Math.min(by0, p[1]); by1 = Math.max(by1, p[1]); });
+      for (yy = Math.max(0, by0 | 0); yy <= Math.min(H - 1, by1 | 0); yy++) { var xs = [];
+        for (i = 0; i < P.length; i++) { var a = P[i], b = P[(i + 1) % P.length]; if ((a[1] <= yy) !== (b[1] <= yy)) xs.push(a[0] + (yy - a[1]) * (b[0] - a[0]) / (b[1] - a[1])); }
+        xs.sort(function (p, q) { return p - q; });
+        for (i = 0; i + 1 < xs.length; i += 2) for (xx = Math.max(0, Math.ceil(xs[i])); xx <= Math.min(W - 1, xs[i + 1] | 0); xx++) mask[yy * W + xx] = 1; }
+      what = 'Erased inside the loop.';
+    } else if (sp.pt) { // tap a shape: the whole connected drawing or mark under the finger, found by its colour
+      var sx = clamp(Math.round(sp.pt.x * W), 0, W - 1), sy = clamp(Math.round(sp.pt.y * H), 0, H - 1), lum = function (q) { return Math.min(d[q * 4], d[q * 4 + 1], d[q * 4 + 2]); };
+      var paper = 0, cnt = 0; for (i = 0; i < N; i += 97) { var l = lum(i); if (l > 200) { paper += l; cnt++; } } paper = cnt ? paper / cnt : 245;
+      var thr = paper - 28, seed = -1, r0, q0; // the nearest non-paper pixel to the tap
+      for (r0 = 0; r0 < 14 && seed < 0; r0++) for (var dy = -r0; dy <= r0 && seed < 0; dy++) for (var dx = -r0; dx <= r0 && seed < 0; dx++) { var qx = sx + dx, qy = sy + dy; if (qx >= 0 && qx < W && qy >= 0 && qy < H && lum(qy * W + qx) < thr) seed = qy * W + qx; }
+      if (seed < 0) return null;
+      var st = [seed], n = 0, lim = N * 0.25; mask[seed] = 1;
+      while (st.length) { q0 = st.pop(); n++; if (n > lim) { return 'big'; } var qx2 = q0 % W, qy2 = (q0 - qx2) / W;
+        for (var t2 = 0; t2 < 8; t2++) { var ox = [-1, 1, 0, 0, -1, 1, -1, 1][t2], oy = [0, 0, -1, 1, -1, -1, 1, 1][t2], nx = qx2 + ox, ny = qy2 + oy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; var nq = ny * W + nx; if (!mask[nq] && lum(nq) < thr) { mask[nq] = 1; st.push(nq); } } }
+      var m2 = mask.slice(); for (i = 0; i < N; i++) if (m2[i]) { var ix = i % W; for (var e2 = -2; e2 <= 2; e2++) for (var f2 = -2; f2 <= 2; f2++) { var jx = ix + e2, jq = i + f2 * W + e2; if (jx >= 0 && jx < W && jq >= 0 && jq < N) mask[jq] = 1; } } // its soft edge too
+      what = 'Erased that shape.';
+    } else { // rectangle
+      var x0 = Math.round(sp.x * W), y0 = Math.round(sp.y * H), x1 = Math.min(W, x0 + Math.max(1, Math.round(sp.w * W))), y1 = Math.min(H, y0 + Math.max(1, Math.round(sp.h * H)));
+      for (yy = Math.max(0, y0); yy < y1; yy++) for (xx = Math.max(0, x0); xx < x1; xx++) mask[yy * W + xx] = 1;
     }
-    var col = [255, 255, 255];
-    if (px.length > 8) { px.sort(function (p, q) { return q[0] - p[0]; }); var t = px[Math.floor(px.length * 0.25)]; col = [t[1], t[2], t[3]]; }
-    x.fillStyle = 'rgb(' + col[0] + ',' + col[1] + ',' + col[2] + ')'; x.fillRect(x0, y0, w, h);
+    var bb = [W, H, 0, 0], any = false; for (i = 0; i < N; i++) if (mask[i]) { any = true; var px2 = i % W, py2 = (i - px2) / W; if (px2 < bb[0]) bb[0] = px2; if (px2 > bb[2]) bb[2] = px2; if (py2 < bb[1]) bb[1] = py2; if (py2 > bb[3]) bb[3] = py2; }
+    if (!any) return null;
+    var col = paperColor(d, W, H, function (a, b) { return mask[b * W + a]; }, bb);
+    for (i = 0; i < N; i++) if (mask[i]) { d[i * 4] = col[0]; d[i * 4 + 1] = col[1]; d[i * 4 + 2] = col[2]; }
+    x.putImageData(img, 0, 0);
     return canvasBlob(c, 0.92);
   }).then(function (blob) {
+    if (blob === 'big') { toast('That shape is too big to erase in one tap (it joins most of the page). Try the lasso.'); return; }
+    if (!blob) { toast('Nothing to erase there.'); return; }
     undo.push([{ id: pg.id, boxes: JSON.stringify(pg.boxes), blob: old }]);
     URL.revokeObjectURL(pg.url); pg.blob = blob; pg.url = URL.createObjectURL(blob);
-    return putBlob(pg.id, blob);
-  }).then(function () { render(); save(); if (wasErase && !S.erase) setErase(true); toast('Erased. Undo brings it back. Press "Find answer lines" again if the page changed a lot.'); });
+    return putBlob(pg.id, blob).then(function () { toast(what + ' Undo brings it back.'); });
+  }).then(function () { render(); save(); if (wasErase && !S.erase) setErase(true); });
 }
 function setErase(on) {
   S.erase = !!on && (S.mode === 'test' || S.mode === 'check') && !!page();
   document.body.classList.toggle('erasing', S.erase); $('bErase').classList.toggle('on', S.erase);
-  if (S.erase) { S.sel = []; render(); toast('Erase is ON: drag over anything on the scan you want gone (a mark, a drawing). Press "Erase background" again when you finish.', 6000); }
+  if (S.erase) { S.sel = []; render(); toast({ rect: 'Erase is ON: drag a box over what you want gone.', lasso: 'Erase is ON: draw a loop around what you want gone.', tap: 'Erase is ON: tap a drawing or mark and the whole shape goes.' }[$('eShape').value] + ' Press "Erase background" again when you finish.', 6000); }
 }
 
 /* ---------- Check mode: the teacher marks a worksheet ---------- */
@@ -2292,9 +2333,12 @@ function cleanPixels(d, W, H, frames) {
   })();
   var hline = new Uint8Array(N); // thin printed lines (answer lines): the watermark and pencil passes never cut them
   (function () {
-    var minRun = Math.round(W * 0.02), x, y;
-    for (y = 0; y < H; y++) { var run = 0; for (x = 0; x <= W; x++) { var on = x < W && ink[y * W + x] > 70; if (on) run++; else { if (run >= minRun) for (var k = x - run; k < x; k++) hline[y * W + k] = 1; run = 0; } } }
+    var minRun = Math.round(W * 0.15), x, y; // a long run: an answer line, not a streak in the watermark
+    for (y = 0; y < H; y++) { var run = 0; for (x = 0; x <= W; x++) { var pq = y * W + x, on = x < W && ink[pq] > 70 && y >= 5 && y < H - 5 && ink[pq] - Math.max(ink[pq - 5 * W], ink[pq + 5 * W]) > 30; if (on) run++; else { if (run >= minRun) for (var k = x - run; k < x; k++) hline[y * W + k] = 1; run = 0; } } }
     for (x = 0; x < W; x++) { var vr = 0; for (y = 0; y <= H; y++) { var hv = y < H && hline[y * W + x]; if (hv) vr++; else { if (vr > 7) for (var k2 = y - vr; k2 < y; k2++) hline[k2 * W + x] = 0; vr = 0; } } } // thick bars are not lines
+    var vl = new Uint8Array(N), minV = Math.round(H * 0.04); // thin vertical lines too (the sides of an essay frame)
+    for (x = 0; x < W; x++) { var run2 = 0; for (y = 0; y <= H; y++) { var pv = y * W + x, on2 = y < H && ink[pv] > 70 && x >= 5 && x < W - 5 && ink[pv] - Math.max(ink[pv - 5], ink[pv + 5]) > 30; if (on2) run2++; else { if (run2 >= minV) for (var k3 = y - run2; k3 < y; k3++) vl[k3 * W + x] = 1; run2 = 0; } } }
+    for (y = 0; y < H; y++) { var hr = 0; for (x = 0; x <= W; x++) { var hv2 = x < W && vl[y * W + x]; if (hv2) hr++; else { if (hr <= 7) for (var k4 = x - hr; k4 < x; k4++) hline[y * W + k4] = 1; hr = 0; } } }
   })();
   var fline = new Uint8Array(N); // faint thin straight lines (the pointer lines of a labelled picture): the white-paper step must not wipe them
   (function () {
@@ -2302,9 +2346,11 @@ function cleanPixels(d, W, H, frames) {
     for (y = 0; y < H; y++) { var run = 0, gapR = 0; for (x = 0; x <= W; x++) { var on = x < W && ink[y * W + x] > thr; if (on) { run += 1 + gapR; gapR = 0; } else if (run && gapR < 2 && x < W) gapR++; else { if (run >= minRun) for (var k = x - run - gapR; k < x - gapR; k++) fline[y * W + k] = 1; run = 0; gapR = 0; } } }
     for (x = 0; x < W; x++) { var vr = 0; for (y = 0; y <= H; y++) { var hv = y < H && fline[y * W + x]; if (hv) vr++; else { if (vr > 5) for (var k2 = y - vr; k2 < y; k2++) fline[k2 * W + x] = 0; vr = 0; } } } // only thin lines, not filled shapes
   })();
-  function whiten(q) { if (pic[q] || hline[q]) return; ink[q] = 0; d[q * 4] = d[q * 4 + 1] = d[q * 4 + 2] = 255; }
+  var wmw = new Uint8Array(N), inWm = false;
+  function whiten(q) { if (pic[q] || hline[q]) return; if (inWm) wmw[q] = 1; ink[q] = 0; d[q * 4] = d[q * 4 + 1] = d[q * 4 + 2] = 255; }
   var SK = cleanPixels.skip || {};
-  if (lvl > 0 && !SK.wm) (function () { // 1. the pale watermark letter
+  inWm = true;
+  if (lvl > 0 && !SK.wm && !SK.art) (function () { // 1. the pale watermark letter
     var r = Math.max(6, Math.round(W * 0.010)), M1 = new Uint8Array(N), k, bl = new Uint8Array(N), br = 3, W1 = W + 1, II = new Int32Array(W1 * (H + 1)), xx, yy;
     for (yy = 0; yy < H; yy++) { var rs0 = 0; for (xx = 0; xx < W; xx++) { rs0 += ink[yy * W + xx]; II[(yy + 1) * W1 + xx + 1] = II[yy * W1 + xx + 1] + rs0; } }
     for (yy = 0; yy < H; yy++) for (xx = 0; xx < W; xx++) { // smoothed ink: a speckled tint reads as one even tint
@@ -2314,9 +2360,10 @@ function cleanPixels(d, W, H, frames) {
     for (k = 0; k < N; k++) M1[k] = bl[k] >= 42 && bl[k] <= 130 ? 1 : 0;
     var C1 = erodeM(M1, r, 0, 0, W, H, 0.9), vals = [], cnt = 0;
     for (k = 0; k < N; k++) if (C1[k]) { cnt++; if (cnt % 5 === 0) vals.push(bl[k]); }
+    if (cleanPixels.dbg) cleanPixels.dbg.push(['wm', cnt, N]);
     if (cnt < N * 0.004) return;
     vals.sort(function (a, b) { return a - b; });
-    var T = vals[Math.floor(vals.length * 0.8)], M2 = new Uint8Array(N);
+    var T = vals[Math.floor(vals.length * 0.8)], M2 = new Uint8Array(N); if (cleanPixels.dbg) cleanPixels.dbg.push(['T', T]);
     if (T < 42) return; // only faint paper noise
     for (k = 0; k < N; k++) M2[k] = bl[k] >= 0.42 * T && bl[k] <= 1.5 * T ? 1 : 0;
     var C2 = erodeM(M2, r, 0, 0, W, H, 0.88), D2 = dilateM(C2, r + 3, 0, 0, W, H), st = new Int32Array(N), seenW = new Uint8Array(N);
@@ -2352,7 +2399,7 @@ function cleanPixels(d, W, H, frames) {
     });
   })();
   // 1b. the cartoon pencil printed over some writing lines: a thick blob that answer lines run under. Erased, the lines are redrawn.
-  if (lvl > 0 && !SK.pen) (function () {
+  if (lvl > 0 && !SK.pen && !SK.art) (function () {
     var r = Math.max(5, Math.round(W * 0.0045)), M3 = new Uint8Array(N), k, y, x;
     for (k = 0; k < N; k++) M3[k] = ink[k] > 55 ? 1 : 0;
     var y0c = Math.round(H * 0.14), C3 = erodeM(M3, r, 0, y0c, W, H, 0.9);
@@ -2375,7 +2422,8 @@ function cleanPixels(d, W, H, frames) {
       var cs = 0, cq = 0, cn = 0; list.forEach(function (q) { if (C3[q]) { cs += ink[q]; cq += ink[q] * ink[q]; cn++; } });
       if (cn < 30) continue;
       var cm = cs / cn; if (Math.sqrt(Math.max(0, cq / cn - cm * cm)) < 16) continue; // flat solid black squares (crossword) are not the shaded pencil
-      var np = 0; list.forEach(function (q) { if (pic[q]) np++; }); if (np > list.length * 0.2) continue; // part of the framed pictures, not a pencil
+      var np = 0; list.forEach(function (q) { if (pic[q]) np++; }); if (cleanPixels.dbg) cleanPixels.dbg.push(['pen', bx0, bx1, by0, by1, np, list.length]); if (np > list.length * 0.2) continue; // part of the framed pictures, not a pencil
+      var cY0 = by0, cY1 = by1; // the dark core of the blob: a writing line must run right under it
       var inC = new Uint8Array(N); list.forEach(function (q) { inC[q] = 1; });
       // the paler body and the tip of the pencil: pale shapes thicker than a printed line that touch the blob
       var M4 = new Uint8Array(N); for (var q4 = 0; q4 < N; q4++) M4[q4] = ink[q4] > 18 ? 1 : 0;
@@ -2390,11 +2438,15 @@ function cleanPixels(d, W, H, frames) {
       for (var qg = 0; qg < N; qg++) if (G[qg]) { inC[qg] = 1; var gyy = (qg / W) | 0, gxx = qg - gyy * W; if (gyy < by0) by0 = gyy; if (gyy > by1) by1 = gyy; if (gxx < bx0) bx0 = gxx; if (gxx > bx1) bx1 = gxx; }
       // rows where a writing line runs under the blob: dark across most of the row outside it
       var lineRows = [], rowsN = 0;
-      for (y = by0; y <= by1; y++) {
+      for (y = cY0; y <= cY1; y++) {
         var dark = 0, tot = 0;
-        for (x = 0; x < W; x++) { if (inC[y * W + x]) continue; tot++; if (ink[y * W + x] > 50) dark++; }
-        if (dark >= 0.3 * W && dark >= 0.6 * Math.min(tot, W * 0.9)) { lineRows.push(y); rowsN++; }
+        for (x = 0; x < W; x++) { if (inC[y * W + x]) continue; tot++; var ys0 = Math.max(0, y - 3), ys1 = Math.min(H - 1, y + 3), on = false; for (var yt = ys0; yt <= ys1 && !on; yt++) if (ink[yt * W + x] > 50) on = true; if (on) dark++; } // a slightly crooked line (the page is not straightened) wanders a few rows
+        var rgt = 0, lft = 0, span = Math.round(W * 0.05); // the line runs on at BOTH sides of the blob (a pencil lies across it; a picture sits at its end)
+        for (x = bx1 + 3; x < Math.min(W, bx1 + 3 + span); x++) if (ink[y * W + x] > 50 || (y > 2 && ink[(y - 2) * W + x] > 50) || (y < H - 2 && ink[(y + 2) * W + x] > 50)) rgt++;
+        for (x = Math.max(0, bx0 - 3 - span); x < bx0 - 3; x++) if (ink[y * W + x] > 50 || (y > 2 && ink[(y - 2) * W + x] > 50) || (y < H - 2 && ink[(y + 2) * W + x] > 50)) lft++;
+        if (dark >= 0.3 * W && dark >= 0.6 * Math.min(tot, W * 0.9) && rgt >= 0.6 * span && lft >= 0.6 * span) { lineRows.push(y); rowsN++; }
       }
+      if (cleanPixels.dbg) cleanPixels.dbg.push(["rows", rowsN, bx0, bx1, by0, by1]);
       if (!rowsN) continue; // no writing lines through it: it is a picture, leave it
       cleanPixels.pencil = true;
       var lr = {}; lineRows.forEach(function (y) { lr[y] = 1; });
@@ -2407,15 +2459,30 @@ function cleanPixels(d, W, H, frames) {
         }
       });
       lineRows = Object.keys(lr).map(Number);
-      for (var qg2 = 0; qg2 < N; qg2++) if (inC[qg2] && !lr[(qg2 / W) | 0] && ink[qg2] > 0) whiten(qg2);
-      lineRows.forEach(function (yy) { // redraw the line across the erased part with the colour of the line next to it
-        var sum = 0, n = 0, xx;
-        for (xx = 0; xx < W; xx++) if (!inC[yy * W + xx] && ink[yy * W + xx] > 50) { sum += d[(yy * W + xx) * 4]; n++; }
-        var v = n ? Math.round(sum / n) : 60;
-        for (xx = 0; xx < W; xx++) { var q2 = yy * W + xx; if (inC[q2] && !pic[q2]) { d[q2 * 4] = d[q2 * 4 + 1] = d[q2 * 4 + 2] = v; ink[q2] = 255 - v; } }
+      // erase the whole blob, then draw each line back along its own slope: from where it leaves the blob on the left to where it comes back on the right
+      var rows = Object.keys(lr).map(Number).sort(function (a, b) { return a - b; }), groups = [];
+      rows.forEach(function (y) { var g = groups[groups.length - 1]; if (g && y - g[g.length - 1] <= 1) g.push(y); else groups.push([y]); });
+      for (var qg2 = 0; qg2 < N; qg2++) if (inC[qg2] && ink[qg2] > 0) whiten(qg2);
+      groups.forEach(function (g) {
+        var ya = Math.max(0, g[0] - 4), yb = Math.min(H - 1, g[g.length - 1] + 4);
+        function lineAt(xc) { // centre row and colour of the printed line in column xc (outside the blob)
+          var sw = 0, sy = 0, sv = 0, n = 0; for (var yy = ya; yy <= yb; yy++) { var qq = yy * W + xc; if (!inC[qq] && ink[qq] > 50) { sw += ink[qq]; sy += yy * ink[qq]; sv += d[qq * 4]; n++; } }
+          return sw ? { y: sy / sw, v: sv / n, t: n } : null;
+        }
+        var L0 = null, R0 = null, xL, xR, xx;
+        for (xL = bx0 - 1; xL > Math.max(0, bx0 - Math.round(W * 0.08)) && !L0; xL--) L0 = lineAt(xL);
+        for (xR = bx1 + 1; xR < Math.min(W, bx1 + Math.round(W * 0.08)) && !R0; xR++) R0 = lineAt(xR);
+        if (!L0 && !R0) return;
+        if (!L0) { L0 = R0; xL = bx0; } if (!R0) { R0 = L0; xR = bx1; }
+        var th = Math.max(1, Math.min(3, Math.round((L0.t + R0.t) / 2))), v = Math.round((L0.v + R0.v) / 2);
+        for (xx = Math.max(0, xL); xx <= Math.min(W - 1, xR); xx++) {
+          var yc = L0.y + (R0.y - L0.y) * (xx - xL) / Math.max(1, xR - xL), y0l = Math.round(yc - (th - 1) / 2);
+          for (var k5 = 0; k5 < th; k5++) { var q2 = (y0l + k5) * W + xx; if (q2 >= 0 && q2 < N && inC[q2] && !pic[q2]) { d[q2 * 4] = d[q2 * 4 + 1] = d[q2 * 4 + 2] = v; ink[q2] = 255 - v; } }
+        }
       });
     }
   })();
+  inWm = false;
   (lvl > 0 && !SK.fr ? (frames || []).filter(function (f) { return f[1] - f[0] >= 0.22 && f[3] - f[2] >= 0.03; }) : []).forEach(function (f) { // 2. a picture drawn inside a writing frame (frames are the empty boxes for long answers)
     var m = Math.max(8, Math.round(W * 0.006)), x0 = Math.round(f[0] * W) + m, x1 = Math.round(f[1] * W) - m, y0 = Math.round(f[2] * H) + m, y1 = Math.round(f[3] * H) - m, r = Math.max(5, Math.round(W * 0.0045));
     if (x1 - x0 < 6 * r || y1 - y0 < 6 * r) return;
@@ -2426,7 +2493,7 @@ function cleanPixels(d, W, H, frames) {
   // dark band the scanner or copier left along an edge of the page (book spine, lid shadow, table):
   // it runs along most of the edge, starts right at the margin and has a ragged inner side.
   // Printed frames and borders are straight, so they are left alone.
-  (function () {
+  if (!SK.band && !SK.edge) (function () {
     function side(vertical, far) {
       var L = vertical ? H : W, D = vertical ? W : H;              // L = along the edge, D = into the page
       var startMax = Math.round(D * (vertical ? 0.035 : 0.012)), cap = Math.round(D * (vertical ? 0.12 : 0.08));
@@ -2442,16 +2509,19 @@ function cleanPixels(d, W, H, frames) {
       var mean = sum / n, sd = Math.sqrt(Math.max(0, sq / n - mean * mean));
       if (mean < W * 0.002) return;
       if (sd < W * 0.0015 && mean < W * 0.016) return;              // thin and perfectly straight: a printed rule
+      var sts = []; for (var si = 0; si < L; si++) if (s0[si] >= 0) sts.push(s0[si]); sts.sort(function (p, q) { return p - q; });
+      if (sts[sts.length >> 1] > D * 0.008) return; // it starts in from the edge: a printed frame line, not a scan shadow
       ends.sort(function (p, q) { return p - q; });
       var core = ends[ends.length >> 1];                              // typical depth of the band
       for (i = 0; i < L; i++) {
         var upto = s0[i] >= 0 ? Math.max(e0[i], core) : core;
-        for (dd = 0; dd <= upto; dd++) { var q = at(i, dd); if (ink[q] > lo) { ink[q] = 0; d[q * 4] = d[q * 4 + 1] = d[q * 4 + 2] = 255; } }
+        for (dd = 0; dd <= upto; dd++) { var q = at(i, dd); if (ink[q] > lo && !hline[q]) { ink[q] = 0; d[q * 4] = d[q * 4 + 1] = d[q * 4 + 2] = 255; } }
       }
     }
     side(true, false); side(true, true); side(false, false); side(false, true);
   })();
   // remove small light specks that stand alone (dots, commas and accents next to letters are kept)
+  var killKeep = null;
   var maxA = Math.round(Math.pow(W / 300, 2)), seen = new Uint8Array(N), kill = new Uint8Array(N), big = new Uint8Array(N), stack = new Int32Array(N), comp = new Int32Array(maxA + 1), small = [], comps = [];
   var zL = Math.round(W * 0.12), zT = Math.round(H * 0.04), zD = Math.round(W * 0.05); // the margin frame: outer 12% left/right, 4% top/bottom
   for (i = 0; i < N; i++) {
@@ -2478,6 +2548,7 @@ function cleanPixels(d, W, H, frames) {
   //     have an even thickness (or two sides), section tabs and page numbers are short: all of those stay.
   // (2) a column of solid dashes, the broken version of the same streak.
   function wipe(seed) { // erase one connected mark
+    if (SK.streak) return;
     var sp2 = 0; stack[sp2++] = seed; kill[seed] = 1; big[seed] = 0;
     while (sp2) {
       var p = stack[--sp2], x = p % W, q;
@@ -2538,25 +2609,68 @@ function cleanPixels(d, W, H, frames) {
     var near = ig[(y1 + 1) * W1 + x1 + 1] - ig[y0 * W1 + x1 + 1] - ig[(y1 + 1) * W1 + x0] + ig[y0 * W1 + x0];
     if (!near) for (var k = 0; k < px.length; k++) kill[px[k]] = 1;
   });
-  (function () { // black scanner shadows and smudges that touch the page edge: everything dark joined to the edge, within a narrow band
-    var bx = Math.round(W * 0.04), by = Math.round(H * 0.03), st = [], seen = new Uint8Array(N), x, y, q;
-    var push = function (q) { if (!seen[q] && ink[q] > lo) { seen[q] = 1; st.push(q); } };
-    for (x = 0; x < W; x++) { push(x); push(W + x); push((H - 1) * W + x); push((H - 2) * W + x); }
-    for (y = 0; y < H; y++) { push(y * W); push(y * W + 1); push(y * W + W - 1); push(y * W + W - 2); }
-    while (st.length) {
-      q = st.pop(); var qx = q % W, qy = (q - qx) / W;
-      if (qx > bx && qx < W - 1 - bx && qy > by && qy < H - 1 - by) continue; // left the edge band: stop there
-      if (!pic[q]) kill[q] = 1;
-      if (qx > 0) push(q - 1); if (qx < W - 1) push(q + 1); if (qy > 0) push(q - W); if (qy < H - 1) push(q + W);
+  if (SK.speck) kill.fill(0); // little specks: left as they are
+  if (!SK.edge) (function () { // black scanner shadows and smudges that touch the page edge. Each dark patch joined to the edge is followed; it is wiped only if it stays
+    // inside the narrow edge band. A patch that runs on into the page (the printed header band, a picture) is real print and is kept whole
+    var bx = Math.round(W * 0.04), by = Math.round(H * 0.03), seen = new Uint8Array(N), seeds = [], x, y;
+    for (x = 0; x < W; x++) { seeds.push(x, W + x, (H - 1) * W + x, (H - 2) * W + x); }
+    for (y = 0; y < H; y++) { seeds.push(y * W, y * W + 1, y * W + W - 1, y * W + W - 2); }
+    seeds.forEach(function (s0) {
+      if (seen[s0] || ink[s0] <= lo) return;
+      var st = [s0], comp = [], inward = false; seen[s0] = 1;
+      while (st.length) {
+        var q = st.pop(), qx = q % W, qy = (q - qx) / W;
+        if (qx > bx && qx < W - 1 - bx && qy > by && qy < H - 1 - by) { inward = true; continue; }
+        if (hline[q] && qx > 4 && qx < W - 5 && qy > 4 && qy < H - 5) continue; // a printed frame line near the edge stays
+        comp.push(q);
+        var nb = [qx > 0 ? q - 1 : -1, qx < W - 1 ? q + 1 : -1, qy > 0 ? q - W : -1, qy < H - 1 ? q + W : -1];
+        for (var t = 0; t < 4; t++) { var n = nb[t]; if (n >= 0 && !seen[n] && ink[n] > lo) { seen[n] = 1; st.push(n); } }
+      }
+      if (inward && comp.length > 0.002 * N) return; // a big shape running into the page: print, not a shadow
+      for (var c = 0; c < comp.length; c++) if (!pic[comp[c]]) kill[comp[c]] = 1;
+    });
+  })();
+  if (!SK.edge) (function () { // short dark marks in the outer strip of the page (a scanner line just inside the edge): nothing is printed there
+    var sx = Math.round(W * 0.015), sy = Math.round(H * 0.012), sn = new Uint8Array(N);
+    for (var i0 = 0; i0 < N; i0++) {
+      if (sn[i0] || ink[i0] <= lo) continue;
+      var x0 = i0 % W, y0 = (i0 - x0) / W; if (x0 > sx && x0 < W - 1 - sx && y0 > sy && y0 < H - 1 - sy) continue;
+      var st = [i0], comp = [], ok = true; sn[i0] = 1;
+      while (st.length) { var q = st.pop(), qx = q % W, qy = (q - qx) / W; comp.push(q);
+        if (qx > sx * 2 && qx < W - 1 - sx * 2 && qy > sy * 2 && qy < H - 1 - sy * 2) ok = false;
+        if (comp.length > N * 0.01) { ok = false; }
+        [qx > 0 ? q - 1 : -1, qx < W - 1 ? q + 1 : -1, qy > 0 ? q - W : -1, qy < H - 1 ? q + W : -1].forEach(function (n) { if (n >= 0 && !sn[n] && ink[n] > lo) { sn[n] = 1; st.push(n); } });
+      }
+      if (ok) comp.forEach(function (q) { if (!pic[q]) kill[q] = 1; });
     }
   })();
-  (function () { // the scanner's border line right at the edge of the page: a thin dark rule along most of an edge
+  if (!SK.edge) (function () { // the scanner's border line right at the edge of the page: a thin dark rule along most of an edge
     [[0, 1, true], [W - 1, -1, true], [0, 1, false], [H - 1, -1, false]].forEach(function (e) {
       var vert = e[2], L = vert ? H : W, D = Math.round((vert ? W : H) * 0.015), deep = -1, a, b;
       var at = function (along, dd) { var c = e[0] + e[1] * dd; return vert ? along * W + c : c * W + along; };
       for (b = 0; b <= D; b++) { var cn = 0; for (a = 0; a < L; a++) if (ink[at(a, b)] > lo) cn++; if (cn >= L * 0.45) deep = b; else if (b > deep + 2) break; }
       if (deep < 0) return;
-      for (a = 0; a < L; a++) for (b = 0; b <= D; b++) { var q = at(a, b); if (b > deep + 1 && ink[q] <= lo) break; kill[q] = 1; }
+      if (deep > Math.round((vert ? W : H) * 0.008)) return; // too thick for a scanner rule: print (a frame side, the header band)
+      for (a = 0; a < L; a++) for (b = 0; b <= deep + 1; b++) { var q = at(a, b); if (ink[q] <= lo || hline[q]) break; kill[q] = 1; } // only the dark run that starts at the very edge
+    });
+  })();
+  if (cleanPixels.dbg) { var nw = 0; for (var z = 0; z < N; z++) if (wmw[z]) nw++; cleanPixels.dbg.push(['wmw', nw]); }
+  (function () { // an answer line that ran through the big "A" lost pieces when the A was wiped: draw the line back across those gaps
+    var segs = [], y, x, minL = Math.round(W * 0.03);
+    for (y = 0; y < H; y++) { var r = 0; for (x = 0; x <= W; x++) { if (x < W && ink[y * W + x] > 60) r++; else { if (r >= minL) segs.push({ y0: y, y1: y, x0: x - r, x1: x - 1 }); r = 0; } } }
+    var L = []; // join the rows of one thick line
+    segs.forEach(function (s) { var m = L.find(function (l) { return s.y0 - l.y1 <= 1 && Math.min(l.x1, s.x1) - Math.max(l.x0, s.x0) > minL; }); if (m) { m.y1 = s.y0; m.x0 = Math.min(m.x0, s.x0); m.x1 = Math.max(m.x1, s.x1); } else L.push(s); });
+    L = L.filter(function (l) { return l.y1 - l.y0 <= 6; });
+    L.sort(function (p, q) { return p.x0 - q.x0; });
+    L.forEach(function (A) {
+      var B = null; L.forEach(function (c) { if (c !== A && c.x0 > A.x1 && c.x0 - A.x1 < W * 0.12 && Math.abs((c.y0 + c.y1) - (A.y0 + A.y1)) <= 10 && (!B || c.x0 < B.x0)) B = c; });
+      if (!B) return;
+      var gw = B.x0 - A.x1 - 1, wiped = 0, ya = (A.y0 + A.y1) / 2, yb = (B.y0 + B.y1) / 2, g;
+      for (g = A.x1 + 1; g < B.x0; g++) for (var yy2 = Math.max(0, Math.round(ya) - 20); yy2 <= Math.min(H - 1, Math.round(ya) + 20); yy2 += 2) if (wmw[yy2 * W + g]) { wiped++; break; }
+      if (wiped < 0.5 * gw) return; // a real gap between two blanks: leave it
+      var th = Math.max(1, Math.round(((A.y1 - A.y0) + (B.y1 - B.y0)) / 2) + 1), a4 = (Math.round(ya) * W + A.x1) * 4, b4 = (Math.round(yb) * W + B.x0) * 4;
+      for (g = A.x1 + 1; g < B.x0; g++) { var t2 = (g - A.x1) / (B.x0 - A.x1), yc = Math.round(ya + (yb - ya) * t2 - (th - 1) / 2);
+        for (var k = 0; k < th; k++) { var q = (yc + k) * W + g, q4 = q * 4; for (var c = 0; c < 3; c++) d[q4 + c] = Math.round(d[a4 + c] * (1 - t2) + d[b4 + c] * t2); ink[q] = 255; kill[q] = 0; } }
     });
   })();
   for (i = 0; i < N; i++) {
@@ -2567,6 +2681,7 @@ function cleanPixels(d, W, H, frames) {
       d[j] = Math.max(0, 255 - (255 - d[j]) * 1.3); d[j + 1] = Math.max(0, 255 - (255 - d[j + 1]) * 1.3); d[j + 2] = Math.max(0, 255 - (255 - d[j + 2]) * 1.3);
       continue;
     }
+    if (SK.bg) { if (kill[i]) d[j] = d[j + 1] = d[j + 2] = 255; continue; } // background left as scanned
     if (v <= lo || kill[i]) { d[j] = d[j + 1] = d[j + 2] = 255; }
     else if (v < hi) { var t = (v - lo) / (hi - lo); d[j] = 255 - (255 - d[j]) * t; d[j + 1] = 255 - (255 - d[j + 1]) * t; d[j + 2] = 255 - (255 - d[j + 2]) * t; }
     else { // the ink: kept, and a little stronger so it does not look washed out next to the white paper (same colour)
@@ -2634,10 +2749,10 @@ function unclean0(pg) {
     return putBlob(pg.id, b).then(function () { URL.revokeObjectURL(pg.url); pg.blob = b; pg.url = URL.createObjectURL(b); pg.cleaned = false; pg.straightOnly = false; return delBlob(pg.id + ':orig'); });
   });
 }
-function straighten(scope) {
+function straighten(scope, keep) {
   var pages = allPages(scope), i = 0, n = 0;
   if (!pages.length) return;
-  if (scope === 'page' && page().straightOnly) { var up = page(); snap([up]); return busy('Undoing…').then(function () { return uncleanPage(up); }).then(function () { idle(); render(); save(); toast('Straighten undone.'); }, function (e) { console.error(e); idle(); }); }
+  if (!keep && scope === 'page' && page().straightOnly) { var up = page(); snap([up]); return busy('Undoing…').then(function () { return uncleanPage(up); }).then(function () { idle(); render(); save(); toast('Straighten undone.'); }, function (e) { console.error(e); idle(); }); }
   snap(pages);
   return busy('Straightening…').then(function step() {
     if (i >= pages.length) return;
@@ -2647,10 +2762,22 @@ function straighten(scope) {
   }).then(function () { idle(); render(); save(); toast(n ? 'Straightened ' + n + ' page' + (n === 1 ? '' : 's') + '. Boxes moved with the page. Undo brings it back.' : 'Nothing to straighten: the page is already level, or it is a typed PDF.'); },
     function (e) { console.error(e); idle(); toast('Sorry, straightening did not work on this page.'); });
 }
-function clean(scope) {
+function cleanOpts() { var o = {}; ['str', 'bg', 'speck', 'edge', 'art'].forEach(function (k) { o[k] = $('co_' + k).checked; }); return o; }
+function cleanGo(scope) { // the ticked steps, in order: straighten first, then clean
+  var o = cleanOpts(); closeMenus();
+  var any = o.bg || o.speck || o.edge || o.art;
+  if (!o.str && !any) return toast('Tick at least one thing to fix.');
+  cleanPixels.skip = { bg: !o.bg, speck: !o.speck, edge: !o.edge, art: !o.art };
+  var redo = allPages(scope).filter(function (g) { return g.cleaned; }); // fixed before: start again from the original scan so the new choices apply
+  var p = (redo.length ? busy('Starting from the original scan…').then(function () { return Promise.all(redo.map(unclean0)); }).then(idle) : Promise.resolve())
+    .then(function () { if (o.str) return straighten(scope, true); });
+  return Promise.resolve(p).then(function () { if (any) return clean(scope, true); });
+}
+function clean(scope, keep) {
   var pages = allPages(scope), i = 0, n = 0;
   cleanPixels.level = +$('cleanLvl').value;
-  if (scope === 'page' && page().cleaned && !page().straightOnly) {
+  if (!keep) cleanPixels.skip = {};
+  if (!keep && scope === 'page' && page().cleaned && !page().straightOnly) {
     return busy('Bringing back the original scan…').then(function () { return uncleanPage(page()); }).then(function () { idle(); render(); save(); toast('Original scan is back.'); });
   }
   snap(pages);
@@ -2659,7 +2786,7 @@ function clean(scope) {
     var pg = pages[i++];
     if (pages.length > 1) $('busyT').textContent = 'Cleaning — page ' + i + ' of ' + pages.length;
     return cleanPage(pg).then(function (did) { if (did) n++; }).then(step);
-  }).then(function () { idle(); render(); save(); toast(n ? 'Cleaned ' + n + ' page' + (n === 1 ? '' : 's') + ': white paper, straight page, dark edge marks removed.' : 'Nothing to clean here: the page is already clean, or it is a typed PDF and not a scan.'); },
+  }).then(function () { idle(); render(); save(); toast(n ? 'Cleaned ' + n + ' page' + (n === 1 ? '' : 's') + '.' : 'Nothing to clean here: the page is already clean, or it is a typed PDF and not a scan.'); },
     function (e) { console.error(e); idle(); toast('Sorry, cleaning did not work on this page.'); });
 }
 
@@ -3072,6 +3199,9 @@ $('bStr').onclick = function () { straighten('page'); };
 $('bStrFile').onclick = function () { straighten('file'); };
 $('bClean').onclick = function () { clean('page'); };
 $('bCleanFile').onclick = function () { clean('file'); };
+$('bFix').onclick = function () { cleanGo('page'); };
+$('bFixFile').onclick = function () { cleanGo('file'); };
+$('bUnfix').onclick = function () { closeMenus(); var pg = page(); if (!pg || !pg.cleaned) return toast('This page is already the original scan.'); snap([pg]); busy('Bringing back the original scan…').then(function () { return unclean0(pg); }).then(function () { idle(); render(); save(); toast('Original scan is back.'); }, function (e) { console.error(e); idle(); }); };
 $('cleanLvl').onchange = function () { // re-clean the shown page at the new strength
   var pg = page(); if (!pg || !pg.cleaned || pg.straightOnly) return;
   cleanPixels.level = +this.value; closeMenus();
@@ -3080,6 +3210,7 @@ $('cleanLvl').onchange = function () { // re-clean the shown page at the new str
 $('bUndo').onclick = doUndo; $('bRedo').onclick = doRedo;
 $('bDel').onclick = delSel; $('bDup').onclick = dupSel;
 $('bErase').onclick = function () { setErase(!S.erase); };
+$('eShape').onchange = function () { setErase(true); };
 $('checkbar').addEventListener('click', function (e) {
   var b = e.target.closest('[data-tool]'), sw = e.target.closest('[data-c]');
   if (b && b.dataset.tool === 'type') { if (S.mode !== 'test') document.querySelector('#mode [data-mode="test"]').click(); return; } // typing in the boxes
