@@ -661,7 +661,8 @@ function findExtras(rgba, ink, W, H) {
       var col = labs.filter(function (g) { return g.side === sd; }).sort(function (a, b) { return a.y0 - b.y0; });
       col.forEach(function (g, k) {
         var h = g.y1 - g.y0 + 1, cy = (g.y0 + g.y1) / 2, up = k ? (g.y0 + g.y1) / 2 - (col[k - 1].y0 + col[k - 1].y1) / 2 : 9e9, dn = k < col.length - 1 ? (col[k + 1].y0 + col[k + 1].y1) / 2 - cy : 9e9;
-        var pitch = Math.min(up, dn), bh = Math.min(Math.max(h * 1.6, 0.022 * H), Math.max(0.94 * pitch, h)), bw = 0.17 * W; // as tall as the space between the numbers allows
+        var pitch = Math.min(up, dn); if (Math.max(up, dn) < 9e8 && pitch < 0.45 * Math.max(up, dn)) pitch = Math.max(up, dn); // a number sitting level with another (3 beside 4): use the spacing on the other side
+        var bh = Math.min(Math.max(h * 1.6, 0.022 * H), Math.max(0.94 * pitch, h)), bw = 0.17 * W; // as tall as the space between the numbers allows
         var bx = sd === 'L' ? Math.max(0.03 * W, g.x0 - 5 - bw) : g.x1 + 5;
         if (sd === 'R') bw = Math.min(bw, 0.97 * W - bx); else bw = g.x0 - 5 - bx;
         if (bw < 0.05 * W) return;
@@ -669,13 +670,18 @@ function findExtras(rgba, ink, W, H) {
       });
     });
     var dg = add.filter(function (b) { return b.k === 'diagram'; });
-    dg.forEach(function (a) { dg.forEach(function (b) { // two labels close together (3 and the small 4 under it): split the overlap so both keep a box
-      if (a === b || a.y > b.y) return;
-      var ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), oy = a.y + a.h - b.y;
-      if (ox <= 0 || oy <= 0) return;
-      var mid = (a.y + a.h / 2 + b.y + b.h / 2) / 2, g = 0.002;
-      var ha = Math.min(a.h, 0.012), hb = Math.min(b.h, 0.012); a.y = mid - g - ha; a.h = ha; b.y = mid + g; b.h = hb; // above and below the split, each still a full line tall
-    }); });
+    for (var it = 0; it < 30; it++) { // two labels close together (3 and the small 4 under it): the upper box gives way (shorter, then higher) so both keep a full box
+      var moved = false;
+      dg.forEach(function (a) { dg.forEach(function (b) {
+        if (a === b || (a.y + a.h / 2) > (b.y + b.h / 2)) return;
+        var ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), ov = a.y + a.h + 0.002 - b.y;
+        if (ox <= 0 || ov <= 0.0005) return;
+        var ta = Math.min(ov, Math.max(0, a.h - 0.018)); a.h -= ta; ov -= ta;
+        if (ov > 0) a.y = Math.max(0, a.y - ov);
+        moved = true;
+      }); });
+      if (!moved) break;
+    }
   }
 
   /* (3) blank brackets "(    )" */
@@ -1172,7 +1178,7 @@ function findAnswerLines(rgba, W, H, opt) {
         for (var vi = 0; vi < vals.length; vi++) if (Math.abs(vals[vi] - med) > contrast) busy++;
         if (busy / vals.length > 0.22) { stats.pictures = (stats.pictures || 0) + 1; return; }
       }
-      boxes.push({ x: x1 / W, y: (bottom - h) / H, w: (x2 - x1) / W, h: h / H });
+      boxes.push({ x: x1 / W, y: (bottom - h) / H, w: (x2 - x1) / W, h: h / H, date: !!s.l.tall, cut: !!s.l.cut });
   });
 
   // big frames (space for a story or essay) get one box with several lines. A faint watermark behind the
@@ -1211,7 +1217,7 @@ function findAnswerLines(rgba, W, H, opt) {
     var again = true;
     while (again) {
       again = false;
-      var pl = boxes.filter(function (b) { return !b.cell && !b.k && !b.label && !b.gap && !b.cut; });
+      var pl = boxes.filter(function (b) { return !b.cell && !b.k && !b.label && !b.gap && !b.cut && !b.date; });
       for (var a = 0; a < pl.length && !again; a++) for (var c = 0; c < pl.length && !again; c++) {
         var A = pl[a], B = pl[c]; if (A === B || B.x < A.x) continue;
         var gap = B.x - (A.x + A.w); if (gap < 0 || gap > 0.2) continue;
@@ -1219,6 +1225,8 @@ function findAnswerLines(rgba, W, H, opt) {
         var gx0 = Math.round((A.x + A.w) * W), gx1 = Math.round(B.x * W), gy0 = Math.round(A.y * H) + 1, gy1 = Math.round((A.y + A.h) * H) - 2, hit = 0, tot = 0;
         for (var xx = gx0; xx < gx1; xx += 2) { var col = 0; for (var yy = gy0; yy < gy1; yy += 2) if (ink[yy * W + xx] > 90) col++; if (col >= 2) hit++; tot++; }
         if (tot && hit / tot > 0.15) continue;
+        var bar = false; for (var xv = gx0; xv < gx1 && !bar; xv++) { var vr = 0, vmax = 0; for (var yv = gy0; yv < gy1 + 3; yv++) { if (ink[yv * W + xv] > 90) { vr++; if (vr > vmax) vmax = vr; } else vr = 0; } if (vmax >= 0.6 * (gy1 - gy0)) bar = true; }
+        if (bar) continue; // a printed divider "|" between them (Teacher's Name | Date): two separate boxes
         var lh = 0, lt = 0, yb = Math.round((A.y + A.h) * H);
         var yb2 = Math.round((B.y + B.h) * H); for (var xl = gx0; xl < gx1; xl += 2) { var got = 0, yc = Math.round(yb + (yb2 - yb) * (xl - gx0) / Math.max(1, gx1 - gx0)); for (var yl = yc - 6; yl <= yc + 6; yl++) if (yl >= 0 && yl < H && ink[yl * W + xl] > 50) { got = 1; break; } lh += got; lt++; }
         if (gap > 0.03 && (!lt || lh / lt < (gap < 0.12 ? 0.35 : 0.8))) continue; // a line must run through the gap (a short gap may have lost part of it to the watermark)
@@ -1230,9 +1238,9 @@ function findAnswerLines(rgba, W, H, opt) {
   // a box must not run over the print that ends just before its line (a sentence whose last word sits above the start of the line)
   boxes.forEach(function (b) {
     if (b.cell || b.k || b.label || b.gap) return;
-    var bx0 = Math.round(b.x * W), bx1 = Math.round((b.x + b.w) * W), by0 = Math.round(b.y * H), by1 = Math.round((b.y + b.h) * H) - 3, last = -1, cx, cy;
+    var bx0 = Math.round(b.x * W), bx1 = Math.round((b.x + b.w) * W), by0 = Math.round(b.y * H), by1 = Math.round((b.y + b.h) * H) - Math.max(6, Math.round(H * 0.005)), last = -1, cx, cy; // stop above the answer line itself
     var reach = Math.min(bx1, bx0 + Math.round(0.3 * (bx1 - bx0)));
-    for (cx = bx0; cx < reach; cx++) { var c3 = 0; for (cy = by0 + 2; cy < by1; cy++) if (ink[cy * W + cx] > 110) c3++; if (c3 >= 2) last = cx; }
+    var runC = 0; for (cx = bx0; cx < reach; cx++) { var c3 = 0; for (cy = by0 + 2; cy < by1; cy++) if (ink[cy * W + cx] > 110) c3++; if (c3 >= 2) { runC++; if (runC >= 5 || c3 >= 0.5 * (by1 - by0)) last = cx; } else runC = 0; } // a word, not a speck of dust
     if (last >= 0 && bx1 - last - 5 >= 0.6 * (bx1 - bx0)) { b.w = (bx1 - (last + 5)) / W; b.x = (last + 5) / W; }
   });
 
@@ -2311,15 +2319,13 @@ function cleanPixels(d, W, H, frames) {
     }
     // the lines cut the letter into pieces; pieces close together form one shape. Only a big shape that runs to the bottom or right edge of the page
     // (where the book prints its big "A") is wiped: a pale picture in the middle of the page (the body diagram) is kept
-    var cl = pieces.map(function (list) { var bx0 = W, bx1 = 0, by0 = H, by1 = 0; for (var q = 0; q < list.length; q += 7) { var qx = list[q] % W, qy = (list[q] - qx) / W; if (qx < bx0) bx0 = qx; if (qx > bx1) bx1 = qx; if (qy < by0) by0 = qy; if (qy > by1) by1 = qy; } return { l: [list], x0: bx0, x1: bx1, y0: by0, y1: by1 }; });
-    var gpx = W * 0.02, merged = true;
-    while (merged) { merged = false;
-      for (var ca = 0; ca < cl.length && !merged; ca++) for (var cb = ca + 1; cb < cl.length && !merged; cb++) { var A1 = cl[ca], B1 = cl[cb];
-        if (A1.x0 - gpx > B1.x1 || B1.x0 - gpx > A1.x1 || A1.y0 - gpx > B1.y1 || B1.y0 - gpx > A1.y1) continue;
-        A1.l = A1.l.concat(B1.l); A1.x0 = Math.min(A1.x0, B1.x0); A1.x1 = Math.max(A1.x1, B1.x1); A1.y0 = Math.min(A1.y0, B1.y0); A1.y1 = Math.max(A1.y1, B1.y1); cl.splice(cb, 1); merged = true; } }
-    cl.forEach(function (c) {
-      if (c.x1 - c.x0 < 0.25 * W || c.y1 - c.y0 < 0.3 * H || (c.y1 < 0.82 * H && c.x1 < 0.9 * W)) return;
-      c.l.forEach(function (list) { for (var j = 0; j < list.length; j++) if (M2[list[j]] && ink[list[j]] <= 1.55 * T) whiten(list[j]); });
+    var pb = pieces.map(function (list) { var bx0 = W, bx1 = 0, by0 = H, by1 = 0; for (var q = 0; q < list.length; q += 7) { var qx = list[q] % W, qy = (list[q] - qx) / W; if (qx < bx0) bx0 = qx; if (qx > bx1) bx1 = qx; if (qy < by0) by0 = qy; if (qy > by1) by1 = qy; } return { l: list, x0: bx0, x1: bx1, y0: by0, y1: by1 }; });
+    // the big "A": one piece that alone spans a big part of the page and runs to its bottom or right edge; the bits the lines cut off it lie inside its outline.
+    // A pale picture in the middle of the page (the body diagram) is never such a piece, so it is kept
+    var anchors = pb.filter(function (c) { return c.x1 - c.x0 >= 0.25 * W && c.y1 - c.y0 >= 0.3 * H && (c.y1 >= 0.82 * H || c.x1 >= 0.9 * W); }), mg = W * 0.01;
+    pb.forEach(function (c) {
+      if (!anchors.some(function (a) { return c === a || (c.x0 >= a.x0 - mg && c.x1 <= a.x1 + mg && c.y0 >= a.y0 - mg && c.y1 <= a.y1 + mg); })) return;
+      for (var j = 0; j < c.l.length; j++) if (M2[c.l[j]] && ink[c.l[j]] <= 1.55 * T) whiten(c.l[j]);
     });
   })();
   // 1b. the cartoon pencil printed over some writing lines: a thick blob that answer lines run under. Erased, the lines are redrawn.
