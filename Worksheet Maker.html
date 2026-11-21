@@ -327,6 +327,7 @@ body.check .ghost .gb{border:0;background:none}
 body.multi #pagewrap{outline:4px solid var(--g5,#22c55e);outline-offset:3px}
 #stage>.ghost:last-child,#stage>#pagewrap:last-child{margin-bottom:24px}
 #marks .mh{fill:#fff;stroke:#15803d;stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:all;cursor:nwse-resize;touch-action:none}
+#txPop .item.tx.on{background:var(--g1);box-shadow:inset 3px 0 0 var(--g5,#22c55e)}#txCols .sw{width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #0002;cursor:pointer;padding:0}#txCols .sw.on{outline:3px solid #15803d;outline-offset:1px}
 </style>
 </head>
 <body class="test">
@@ -426,7 +427,16 @@ body.multi #pagewrap{outline:4px solid var(--g5,#22c55e);outline-offset:3px}
 </div>
 
 <div class="bar" id="checkbar">
-  <button class="btn tool on" data-tool="type" title="Type in the answer boxes; add, move or resize boxes">⌨<span class="long2"> Type</span></button>
+  <div class="menu" id="mText"><button class="btn tool on" data-tool="type" title="Text: click on the page to add a text box and type; drag for your own size">T<span class="long2"> Text</span></button><button class="btn" data-menu title="Text colour and box size">▾</button>
+    <div class="pop" id="txPop">
+      <div class="lbl">Colour</div>
+      <div class="row" id="txCols"></div>
+      <div class="lbl">Box you get with a click</div>
+      <button class="item tx" data-tx="short">▭ <b>Short</b> — one word or a number</button>
+      <button class="item tx" data-tx="long">▬ <b>Long</b> — one line of text</button>
+      <button class="item tx" data-tx="big">▇ <b>Big</b> — several lines</button>
+    </div>
+  </div>
   <div class="sep"></div>
   <button class="btn tool" data-tool="select" title="Move mark: click one of your marks to move it (answer boxes are not moved)">↖ Move marks</button>
   <button class="btn danger" id="ckClear">Clear all marks</button>
@@ -448,7 +458,7 @@ body.multi #pagewrap{outline:4px solid var(--g5,#22c55e);outline-offset:3px}
   <div class="sep"></div>
   <button class="btn tool" data-tool="check" title="Check mark: click to place it">✓</button>
   <button class="btn tool" data-tool="arrow" id="ckShapeBtn" title="Shape: drag to draw it">➜</button><select id="ckShape" class="btn" title="Which shape"><option value="arrow">➜ Arrow</option><option value="oval">◯ Circle</option><option value="rect">▢ Square</option><option value="line">／ Line</option></select>
-  <button class="btn tool" data-tool="text" title="Text note: click where you want to write">T Text</button>
+  <button class="btn tool hide" data-tool="text" title="Text note: click where you want to write">T Text</button>
   <button class="btn tool" data-tool="stamp" title="Stamp: click to place the stamp chosen next to it">★</button>
   <select id="ckStamp" class="btn" title="Which stamp"></select>
   <div class="sep"></div>
@@ -2021,7 +2031,7 @@ function endDrag(e) {
     if (dr.moved && b.w > 0.012 && b.h > 0.005) {
       undo.push([{ id: pg.id, boxes: dr.before }]);
       if (b.h * pg.ptH > 40) b.multi = true; // tall box = paragraph answer
-      pg.boxes = pg.boxes.filter(function (o) { return !(o.tmp && !String(o.v || '').trim()); }); pg.boxes.push(b); S.sel = [b.id]; save();
+      pg.boxes = pg.boxes.filter(function (o) { return !(o.tmp && !String(o.v || '').trim()); }); if (TX.col && TX.col !== TCOLS[0]) b.col = TX.col; pg.boxes.push(b); S.sel = [b.id]; save();
     } else if (!dr.moved) { clickBox(pg, dr.start); return; }
     else S.sel = [];
     render();
@@ -2054,10 +2064,22 @@ function dupSel() {
   sel.forEach(function (b) { var c = JSON.parse(JSON.stringify(b)); c.id = nid(); c.v = ''; delete c.auto; if (c.y + dy + c.h <= 1) c.y += dy; else c.x = Math.min(c.x + 0.02, 1 - c.w); pg.boxes.push(c); ids.push(c.id); });
   S.sel = ids; render(); save();
 }
+var TX = { size: 'long', col: '' }; try { var tx0 = JSON.parse(localStorage.getItem('wmTx') || '{}'); if (tx0.size) TX.size = tx0.size; if (tx0.col) TX.col = tx0.col; } catch (e) {}
+function txShow() {
+  document.querySelectorAll('#txPop .tx').forEach(function (b) { b.classList.toggle('on', b.dataset.tx === TX.size); });
+  document.querySelectorAll('#txCols button').forEach(function (b) { b.classList.toggle('on', b.dataset.col === (TX.col || TCOLS[0])); });
+  try { localStorage.setItem('wmTx', JSON.stringify(TX)); } catch (e) {}
+}
+function txGo() { if (S.mode !== 'test') document.querySelector('#mode [data-mode="test"]').click(); closeMenus(); }
+TCOLS.forEach(function (col) { var x = document.createElement('button'); x.className = 'sw'; x.dataset.col = col; x.style.background = col; x.title = 'Text colour';
+  x.onclick = function () { TX.col = col; txShow(); var pg = page(), t = pg ? selBoxes() : []; if (t.length) { snap([pg]); t.forEach(function (b) { b.col = col; }); render(); save(); } txGo(); toast('Text colour set. Click on the page to add a box.'); }; $('txCols').appendChild(x); });
+document.querySelectorAll('#txPop .tx').forEach(function (b) { b.onclick = function () { TX.size = b.dataset.tx; txShow(); txGo(); toast({ short: 'Short boxes', long: 'Long boxes', big: 'Big boxes' }[TX.size] + ': click on the page to add one. Drag for your own size.'); }; });
+txShow();
 function clickBox(pg, pt) { // a click on empty paper: a ready-made box to type in (drag instead for a custom size)
   if (!pg) return;
-  var h = 0.024, x = Math.max(0, pt.x - 0.01), w = Math.min(0.3, 1 - x); if (w < 0.08) { w = 0.08; x = 0.92; }
-  var b = { id: nid(), x: x, y: clamp(pt.y - h / 2, 0, 1 - h), w: w, h: h, multi: false, fs: 0, v: '', tmp: 1 };
+  var sz = TX.size === 'short' ? [0.13, 0.024] : TX.size === 'big' ? [0.45, 0.09] : [0.3, 0.024], h = sz[1], x = Math.max(0, pt.x - 0.01), w = Math.min(sz[0], 1 - x); if (w < 0.08) { w = 0.08; x = 0.92; }
+  var b = { id: nid(), x: x, y: clamp(pt.y - (TX.size === 'big' ? 0.012 : h / 2), 0, 1 - h), w: w, h: h, multi: TX.size === 'big', fs: 0, v: '', tmp: 1 };
+  if (TX.col && TX.col !== TCOLS[0]) b.col = TX.col;
   snap([pg]); pg.boxes = pg.boxes.filter(function (o) { return !(o.tmp && !String(o.v || '').trim()); }); // the last click-box left empty goes away
   pg.boxes.push(b); S.sel = [b.id]; render(); save();
   var ni = $('layer').querySelector('[data-id="' + b.id + '"] input, [data-id="' + b.id + '"] textarea'); if (ni) ni.focus({ preventScroll: true });
