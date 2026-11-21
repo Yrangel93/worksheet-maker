@@ -661,7 +661,7 @@ function findExtras(rgba, ink, W, H) {
       var col = labs.filter(function (g) { return g.side === sd; }).sort(function (a, b) { return a.y0 - b.y0; });
       col.forEach(function (g, k) {
         var h = g.y1 - g.y0 + 1, cy = (g.y0 + g.y1) / 2, up = k ? (g.y0 + g.y1) / 2 - (col[k - 1].y0 + col[k - 1].y1) / 2 : 9e9, dn = k < col.length - 1 ? (col[k + 1].y0 + col[k + 1].y1) / 2 - cy : 9e9;
-        var pitch = Math.min(up, dn), bh = Math.min(Math.max(h * 1.5, 0.014 * H), Math.max(0.9 * pitch, h)), bw = 0.17 * W;
+        var pitch = Math.min(up, dn), bh = Math.min(Math.max(h * 1.6, 0.022 * H), Math.max(0.94 * pitch, h)), bw = 0.17 * W; // as tall as the space between the numbers allows
         var bx = sd === 'L' ? Math.max(0.03 * W, g.x0 - 5 - bw) : g.x1 + 5;
         if (sd === 'R') bw = Math.min(bw, 0.97 * W - bx); else bw = g.x0 - 5 - bx;
         if (bw < 0.05 * W) return;
@@ -1145,7 +1145,7 @@ function findAnswerLines(rgba, W, H, opt) {
       var x1 = s.x1, x2 = s.x2, xm = (x1 + x2) / 2;
       var yy = s.yFix != null ? s.yFix : lineY(s.l, xm);           // line height at this part
       var drift = Math.abs((x2 - x1) * s.l.slope) / 2;                // tilt: keep box clear of the line
-      var bottom = yy - Math.max(2, H * 0.0015) - drift;
+      var bottom = yy + 2 - drift * 0.3; // the box sits right on the line (a smidge past it) so it is as tall as possible
       if (s.l.tall) { // Date box: start after the "Date:" label, then it may grow up to the header band
         var lastC = -1, bt = Math.round(bottom);
         for (x = x1; x < Math.min(x2, x1 + W * 0.12); x++) { var cc = 0; for (y = bt - Math.round(H * 0.02); y < bt - Math.round(H * 0.004); y++) if (inkAt(x, y)) cc++; if (cc >= 2) lastC = x; }
@@ -2309,7 +2309,18 @@ function cleanPixels(d, W, H, frames) {
       }
       if (list.length >= 0.0015 * N) { pieces.push(list); ux0 = Math.min(ux0, x0); ux1 = Math.max(ux1, x1); uy0 = Math.min(uy0, y0); uy1 = Math.max(uy1, y1); } // the printed lines cut the letter into pieces: judge them together
     }
-    if (ux1 - ux0 >= 0.3 * W && uy1 - uy0 >= 0.3 * H) pieces.forEach(function (list) { for (var j = 0; j < list.length; j++) if (M2[list[j]] && ink[list[j]] <= 1.55 * T) whiten(list[j]); }); // big enough to be a watermark, not a picture
+    // the lines cut the letter into pieces; pieces close together form one shape. Only a big shape that runs to the bottom or right edge of the page
+    // (where the book prints its big "A") is wiped: a pale picture in the middle of the page (the body diagram) is kept
+    var cl = pieces.map(function (list) { var bx0 = W, bx1 = 0, by0 = H, by1 = 0; for (var q = 0; q < list.length; q += 7) { var qx = list[q] % W, qy = (list[q] - qx) / W; if (qx < bx0) bx0 = qx; if (qx > bx1) bx1 = qx; if (qy < by0) by0 = qy; if (qy > by1) by1 = qy; } return { l: [list], x0: bx0, x1: bx1, y0: by0, y1: by1 }; });
+    var gpx = W * 0.02, merged = true;
+    while (merged) { merged = false;
+      for (var ca = 0; ca < cl.length && !merged; ca++) for (var cb = ca + 1; cb < cl.length && !merged; cb++) { var A1 = cl[ca], B1 = cl[cb];
+        if (A1.x0 - gpx > B1.x1 || B1.x0 - gpx > A1.x1 || A1.y0 - gpx > B1.y1 || B1.y0 - gpx > A1.y1) continue;
+        A1.l = A1.l.concat(B1.l); A1.x0 = Math.min(A1.x0, B1.x0); A1.x1 = Math.max(A1.x1, B1.x1); A1.y0 = Math.min(A1.y0, B1.y0); A1.y1 = Math.max(A1.y1, B1.y1); cl.splice(cb, 1); merged = true; } }
+    cl.forEach(function (c) {
+      if (c.x1 - c.x0 < 0.25 * W || c.y1 - c.y0 < 0.3 * H || (c.y1 < 0.82 * H && c.x1 < 0.9 * W)) return;
+      c.l.forEach(function (list) { for (var j = 0; j < list.length; j++) if (M2[list[j]] && ink[list[j]] <= 1.55 * T) whiten(list[j]); });
+    });
   })();
   // 1b. the cartoon pencil printed over some writing lines: a thick blob that answer lines run under. Erased, the lines are redrawn.
   if (lvl > 0 && !SK.pen) (function () {
