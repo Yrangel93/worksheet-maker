@@ -314,6 +314,8 @@ body.test .box.act .vw{display:block}
 svg.lasso{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
 svg.lasso polygon{fill:rgba(239,68,68,.15);stroke:#dc2626;stroke-width:2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}
 #eShape{width:auto;padding:0 6px}
+#mErase .item.on{background:var(--g1,#dcfce7);font-weight:600}
+#checkbar .menu{display:inline-flex;align-items:center;position:relative}#checkbar .menu>.btn+.btn{margin-left:-1px;padding:0 7px}
 </style>
 </head>
 <body class="test">
@@ -421,7 +423,15 @@ svg.lasso polygon{fill:rgba(239,68,68,.15);stroke:#dc2626;stroke-width:2;stroke-
   <button class="btn tool" data-tool="pen" title="Pencil: draw freely">✎ <span class="long2">Pen</span></button>
   <button class="btn tool" data-tool="hl" title="Highlighter">▮ <span class="long2">Highlight</span></button>
   <button class="btn tool" data-tool="erase" title="Eraser: click or drag over marks to rub them out">⌫ <span class="long2">Erase marks</span></button>
-  <button class="btn" id="bErase" title="Erase background: Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">Erase background</button><select id="eShape" class="btn" title="How to pick what to erase"><option value="rect">▭ Box</option><option value="lasso">➰ Lasso</option><option value="tap">✨ Tap a shape</option></select>
+  <div class="menu" id="mErase">
+    <button class="btn" id="bErase" title="Erase background: Drag over a part of the scan to wipe it white: a dark mark, a drawing in the way">Erase background</button><button class="btn" data-menu title="Choose how to pick what to erase">▾</button>
+    <div class="pop">
+      <div class="lbl">How to erase</div>
+      <button class="item es on" data-es="rect">▭ <b>Box</b> — drag a box over it</button>
+      <button class="item es" data-es="lasso">➰ <b>Lasso</b> — draw a loop around it</button>
+      <button class="item es" data-es="tap">✨ <b>Tap a shape</b> — the whole drawing goes</button>
+    </div>
+  </div><select id="eShape" class="hide"><option value="rect">rect</option><option value="lasso">lasso</option><option value="tap">tap</option></select>
   <div class="sep"></div>
   <button class="btn tool" data-tool="check" title="Check mark: click to place it">✓</button>
   <button class="btn tool" data-tool="arrow" id="ckShapeBtn" title="Shape: drag to draw it">➜</button><select id="ckShape" class="btn" title="Which shape"><option value="arrow">➜ Arrow</option><option value="oval">◯ Circle</option><option value="rect">▢ Square</option><option value="line">／ Line</option></select>
@@ -682,7 +692,7 @@ function findExtras(rgba, ink, W, H) {
         if (used.indexOf(a) >= 0) return;
         var st = [a], last = a;
         dg.slice().sort(function (p, q) { return p.y - q.y; }).forEach(function (c) { if (c !== last && used.indexOf(c) < 0 && st.indexOf(c) < 0 && Math.abs(c.x + c.w - (last.x + last.w)) < 0.01 && Math.abs(c.x - last.x) < 0.01 && c.y > last.y && c.y - (last.y + last.h) < 0.006 && c.h < 0.017) { st.push(c); last = c; } });
-        if (st.length < 3) return;
+        if (st.length < 2) return;
         var y = st[0].y; st.forEach(function (c) { c.y = y; c.h = Math.max(c.h, 0.0158); y += c.h + 0.0015; used.push(c); c.stk = 1; });
         dg.slice().sort(function (p, q) { return p.y - q.y; }).forEach(function (c) { // the next label under the stack (9) moves down out of its way
           if (c.stk || Math.min(c.x + c.w, a.x + a.w) - Math.max(c.x, a.x) <= 0 || c.y + c.h / 2 < st[0].y + st[0].h) return;
@@ -979,6 +989,14 @@ function findAnswerLines(rgba, W, H, opt) {
   }
 
 
+  // 4b2. a line whose start is hidden by print touching it from below (the answer printed right under the line): follow the dark row on to where it really starts
+  lines.forEach(function (l) {
+    var thr = Math.max(40, 0.4 * inkTop), gap = 0, x0 = Math.round(l.x1), lim = Math.round(W * 0.03), xx;
+    function dark(xq) { var yc = Math.round(lineY(l, xq)); for (var dy = -1; dy <= 1; dy++) { var yq = yc + dy; if (yq >= 0 && yq < H && ink[yq * W + xq] > thr) return true; } return false; }
+    for (xx = x0 - 1; xx > lim; xx--) { if (dark(xx)) { gap = 0; l.x1 = xx; } else if (++gap > 4) break; }
+    if (other(l)) l.x1 = x0;
+  });
+  function other(l) { return lines.some(function (o) { return o !== l && Math.abs(o.y - l.y) < 6 && o.x2 > l.x1 && o.x1 < l.x1 + 5; }); }
   // 4c. thickness of every line; heavy rules (page borders, decoration) are much thicker than answer lines
   lines.forEach(function (l) {
     var ts = [], reach = d * 3;
@@ -991,7 +1009,7 @@ function findAnswerLines(rgba, W, H, opt) {
       ts.push(c2);
     }
     ts.sort(function (p, q) { return p - q; });
-    l.thick = ts.length ? ts[ts.length >> 1] : 1;
+    l.thick = ts.length ? ts[Math.floor(ts.length * 0.2)] : 1; // low end: printed text touching under part of the line does not make it look thick
   });
   var allT = lines.map(function (l) { return l.thick; }).sort(function (p, q) { return p - q; });
   var medT = allT.length ? allT[allT.length >> 1] : 1;
@@ -1012,7 +1030,7 @@ function findAnswerLines(rgba, W, H, opt) {
     }
     l.below = occB / n;
     if (footer && l.below > 0.8 && l.x2 - l.x1 >= W * 0.16) return true; // a last answer line sitting just above the page border
-    if (l.below > (footer && l.x2 - l.x1 >= W * 0.25 ? 0.05 : shortL ? 0.12 : 0.3)) { stats.text++; return false; } // a short "line" with print right under it is the top of a word
+    if (l.below > (footer && l.x2 - l.x1 >= W * 0.25 ? 0.12 : shortL ? 0.12 : l.x2 - l.x1 >= W * 0.15 ? 0.7 : 0.3)) { stats.text++; return false; } // a long answer line can have the printed answer right under it // a short "line" with print right under it is the top of a word
     return true;
   });
   if (opt.debug) lines.forEach(function (l) { console.log(Math.round(l.x1), Math.round(l.x2), Math.round(l.y), 'thick', l.thick, 'below', l.below.toFixed(2)); });
@@ -1260,7 +1278,7 @@ function findAnswerLines(rgba, W, H, opt) {
   // a box must not run over the print that ends just before its line (a sentence whose last word sits above the start of the line)
   boxes.forEach(function (b) {
     if (b.cell || b.k || b.label || b.gap) return;
-    var bx0 = Math.round(b.x * W), bx1 = Math.round((b.x + b.w) * W), by0 = Math.round(b.y * H), by1 = Math.round((b.y + b.h) * H) - Math.max(6, Math.round(H * 0.005)), last = -1, cx, cy; // stop above the answer line itself
+    var bx0 = Math.round(b.x * W), bx1 = Math.round((b.x + b.w) * W), by0 = Math.round(b.y * H), by1 = Math.round((b.y + b.h) * H) - Math.max(10, Math.round(H * 0.009)), last = -1, cx, cy; // stop above the answer line itself
     var reach = Math.min(bx1, bx0 + Math.round(0.3 * (bx1 - bx0)));
     var runC = 0; for (cx = bx0; cx < reach; cx++) { var c3 = 0; for (cy = by0 + 2; cy < by1; cy++) if (ink[cy * W + cx] > 110) c3++; if (c3 >= 2) { runC++; if (runC >= 5 || c3 >= 0.5 * (by1 - by0)) last = cx; } else runC = 0; } // a word, not a speck of dust
     if (last >= 0 && bx1 - last - 5 >= 0.6 * (bx1 - bx0)) { b.w = (bx1 - (last + 5)) / W; b.x = (last + 5) / W; }
@@ -3210,7 +3228,10 @@ $('cleanLvl').onchange = function () { // re-clean the shown page at the new str
 $('bUndo').onclick = doUndo; $('bRedo').onclick = doRedo;
 $('bDel').onclick = delSel; $('bDup').onclick = dupSel;
 $('bErase').onclick = function () { setErase(!S.erase); };
-$('eShape').onchange = function () { setErase(true); };
+document.querySelectorAll('#mErase .es').forEach(function (b) { b.onclick = function () {
+  $('eShape').value = b.dataset.es; document.querySelectorAll('#mErase .es').forEach(function (o) { o.classList.toggle('on', o === b); });
+  $('bErase').textContent = { rect: 'Erase background', lasso: '➰ Erase background', tap: '✨ Erase background' }[b.dataset.es]; closeMenus(); setErase(true);
+}; });
 $('checkbar').addEventListener('click', function (e) {
   var b = e.target.closest('[data-tool]'), sw = e.target.closest('[data-c]');
   if (b && b.dataset.tool === 'type') { if (S.mode !== 'test') document.querySelector('#mode [data-mode="test"]').click(); return; } // typing in the boxes
