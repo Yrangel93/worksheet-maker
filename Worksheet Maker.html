@@ -59,7 +59,7 @@ main{flex:1;display:flex;min-height:0}
 .thumb img{display:block;width:100%}
 .thumb b{position:absolute;left:4px;top:4px;background:var(--g8);color:#fff;font-size:11px;border-radius:4px;padding:1px 5px}
 .thumb i{position:absolute;right:4px;bottom:4px;background:#fff;border:1px solid var(--g5);color:var(--g7);font-style:normal;font-size:11px;border-radius:4px;padding:0 5px}
-#stage{flex:1;overflow:auto;position:relative;padding:18px}
+#stage{flex:1;overflow:auto;overflow-anchor:none;position:relative;padding:18px}
 #pagewrap{margin:0 auto;position:relative;box-shadow:0 2px 14px rgba(15,61,36,.2);background:#fff;user-select:none;-webkit-user-select:none}
 #pagewrap img{display:block;width:100%;pointer-events:none}
 #layer{position:absolute;inset:0;touch-action:pan-x pan-y pinch-zoom}
@@ -1824,7 +1824,7 @@ function ghostFill(g, p) {
   g.innerHTML = h; g.dataset.u = p.url + '|' + p.boxes.length;
 }
 function syncGhosts() {
-  var st = $('stage'), d = doc(), pw = $('pagewrap'), key = S.d + ':' + d.pages.map(function (p) { return p.id; }).join(',');
+  var st = $('stage'), keepTop = st.scrollTop, d = doc(), pw = $('pagewrap'), key = S.d + ':' + d.pages.map(function (p) { return p.id; }).join(',');
   if (GH.key !== key) { st.querySelectorAll('.ghost').forEach(function (g) { g.remove(); }); GH.key = key; GH.shown = '';
     d.pages.forEach(function (p, i) { var g = document.createElement('div'); g.className = 'ghost'; g.dataset.p = i; st.appendChild(g); }); }
   var w = pw.style.width, ghosts = st.querySelectorAll('.ghost');
@@ -1833,7 +1833,7 @@ function syncGhosts() {
   if (pw.nextSibling !== ghosts[S.p].nextSibling || pw.previousSibling !== ghosts[S.p]) st.insertBefore(pw, ghosts[S.p].nextSibling);
   var now = S.d + ':' + S.p;
   if (GH.shown !== now) { var first = !GH.shown; GH.shown = now;
-    if (!GH.fromScroll) st.scrollTop = first && S.p === 0 ? 0 : pw.offsetTop - 12;
+    if (!GH.fromScroll) st.scrollTop = first && S.p === 0 ? 0 : pw.offsetTop - 12; else { GH.quiet = Date.now(); st.scrollTop = keepTop; }
     var th = document.querySelector('.thumb.cur'); if (th) th.scrollIntoView({ block: 'nearest' }); }
   GH.fromScroll = false;
 }
@@ -1844,7 +1844,7 @@ $('stage').addEventListener('scroll', function () {
     var st = $('stage'), mid = st.scrollTop + st.clientHeight * 0.4, best = S.p, bd = 1e9;
     [$('pagewrap')].concat([].slice.call(st.querySelectorAll('.ghost:not(.hide)'))).forEach(function (el) {
       var c = el.offsetTop + el.offsetHeight / 2, dd = Math.abs(c - mid); if (mid >= el.offsetTop && mid <= el.offsetTop + el.offsetHeight) dd = 0;
-      if (dd < bd) { bd = dd; best = el.id === 'pagewrap' ? S.p : +el.dataset.p; } });
+      if (dd === 0 && dd < bd) { bd = dd; best = el.id === 'pagewrap' ? S.p : +el.dataset.p; } });
     if (best !== S.p) { var a = document.activeElement; if (a && a.blur && $('pagewrap').contains(a)) a.blur(); S.p = best; S.sel = []; GH.fromScroll = true; render(); save(); }
   }, 90);
 }, { passive: true });
