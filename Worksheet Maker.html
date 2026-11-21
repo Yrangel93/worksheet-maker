@@ -316,6 +316,8 @@ svg.lasso polygon{fill:rgba(239,68,68,.15);stroke:#dc2626;stroke-width:2;stroke-
 #eShape{width:auto;padding:0 6px}
 #mErase .item.on{background:var(--g1,#dcfce7);font-weight:600}
 #checkbar .menu{display:inline-flex;align-items:center;position:relative}#checkbar .menu>.btn+.btn{margin-left:-1px;padding:0 7px}
+
+.mvpiece,.mvhole{position:absolute;pointer-events:none}.mvpiece{outline:2px dashed #15803d;outline-offset:1px;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:5}.mvhole{z-index:4}
 </style>
 </head>
 <body class="test">
@@ -430,8 +432,10 @@ svg.lasso polygon{fill:rgba(239,68,68,.15);stroke:#dc2626;stroke-width:2;stroke-
       <button class="item es on" data-es="rect">▭ <b>Box</b> — drag a box over it</button>
       <button class="item es" data-es="lasso">➰ <b>Lasso</b> — draw a loop around it</button>
       <button class="item es" data-es="tap">✨ <b>Tap a shape</b> — the whole drawing goes</button>
+      <div class="lbl">Move instead</div>
+      <button class="item es" data-es="move">✥ <b>Lasso &amp; move</b> — loop it, then drag it somewhere else</button>
     </div>
-  </div><select id="eShape" class="hide"><option value="rect">rect</option><option value="lasso">lasso</option><option value="tap">tap</option></select>
+  </div><select id="eShape" class="hide"><option value="rect">rect</option><option value="lasso">lasso</option><option value="tap">tap</option><option value="move">move</option></select>
   <div class="sep"></div>
   <button class="btn tool" data-tool="check" title="Check mark: click to place it">✓</button>
   <button class="btn tool" data-tool="arrow" id="ckShapeBtn" title="Shape: drag to draw it">➜</button><select id="ckShape" class="btn" title="Which shape"><option value="arrow">➜ Arrow</option><option value="oval">◯ Circle</option><option value="rect">▢ Square</option><option value="line">／ Line</option></select>
@@ -1816,6 +1820,7 @@ function pxPerPt() { var pg = page(); return $('pagewrap').clientWidth / pg.ptW;
 function renderBoxes() {
   var pg = page(), L = $('layer'), k = pxPerPt();
   L.innerHTML = '';
+  if (S.mv && S.mv.pg === pg) { L.appendChild(S.mv.hole); L.appendChild(S.mv.el); } else if (S.mv) dropMove();
   var list = S.mode === 'test' ? order(pg.boxes) : pg.boxes;
   list.forEach(function (b) {
     var el = document.createElement('div');
@@ -1913,8 +1918,13 @@ $('layer').addEventListener('pointerdown', function (e) {
     e.preventDefault(); $('layer').setPointerCapture(e.pointerId);
     var es = $('eShape').value;
     if (es === 'tap') { eraseArea(pg, { pt: pt }); return; }
+    if (es === 'move' && S.mv) {
+      var m0 = S.mv, bx = m0.box;
+      if (pt.x >= bx.x + m0.dx && pt.x <= bx.x + m0.dx + bx.w && pt.y >= bx.y + m0.dy && pt.y <= bx.y + m0.dy + bx.h) { drag = { type: 'mvpiece', start: pt, moved: false, dx: m0.dx, dy: m0.dy }; return; }
+      dropMove(); // tapped somewhere else: let go of the piece
+    }
     drag = { type: 'erase', start: pt, moved: false, shape: es, pts: [pt] };
-    if (es === 'lasso') { var sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('class', 'lasso'); sv.setAttribute('viewBox', '0 0 1000 1000'); sv.setAttribute('preserveAspectRatio', 'none'); sv.innerHTML = '<polygon points="" />'; drag.el = sv; $('layer').appendChild(sv); }
+    if (es === 'lasso' || es === 'move') { var sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('class', 'lasso'); sv.setAttribute('viewBox', '0 0 1000 1000'); sv.setAttribute('preserveAspectRatio', 'none'); sv.innerHTML = '<polygon points="" />'; drag.el = sv; $('layer').appendChild(sv); }
     else { var ge = document.createElement('div'); ge.className = 'box draw erase'; drag.el = ge; $('layer').appendChild(ge); }
     return;
   }
@@ -1939,7 +1949,8 @@ $('layer').addEventListener('pointermove', function (e) {
   var pt = rel(e), dx = pt.x - drag.start.x, dy = pt.y - drag.start.y, r = $('layer').getBoundingClientRect();
   if (!drag.moved && Math.abs(dx * r.width) + Math.abs(dy * r.height) < 4) return;
   drag.moved = true;
-  if (drag.type === 'erase' && drag.shape === 'lasso') {
+  if (drag.type === 'mvpiece') { S.mv.dx = drag.dx + dx; S.mv.dy = drag.dy + dy; place(S.mv.el, { x: S.mv.box.x + S.mv.dx, y: S.mv.box.y + S.mv.dy, w: S.mv.box.w, h: S.mv.box.h }); return; }
+  if (drag.type === 'erase' && (drag.shape === 'lasso' || drag.shape === 'move')) {
     drag.pts.push(pt); drag.el.firstChild.setAttribute('points', drag.pts.map(function (p) { return (p.x * 1000).toFixed(1) + ',' + (p.y * 1000).toFixed(1); }).join(' '));
   } else if (drag.type === 'draw' || drag.type === 'erase') {
     place(drag.el, { x: Math.min(pt.x, drag.start.x), y: Math.min(pt.y, drag.start.y), w: Math.abs(dx), h: Math.abs(dy) });
@@ -1954,9 +1965,11 @@ $('layer').addEventListener('pointermove', function (e) {
 function endDrag(e) {
   if (!drag) { if (tap && e.type === 'pointerup' && Math.abs(e.clientX - tap.x) + Math.abs(e.clientY - tap.y) < 10 && S.sel.length) { S.sel = []; render(); } tap = null; return; }
   var pg = page(), dr = drag; drag = null;
+  if (dr.type === 'mvpiece') { if (dr.moved) commitMove(); return; }
   if (dr.type === 'erase') {
     var pe = rel(e), rc = { x: Math.min(pe.x, dr.start.x), y: Math.min(pe.y, dr.start.y), w: Math.abs(pe.x - dr.start.x), h: Math.abs(pe.y - dr.start.y) };
     if (dr.el) dr.el.remove();
+    if (dr.shape === 'move') { if (dr.moved && dr.pts.length > 4) liftArea(pg, dr.pts); return; }
     if (dr.shape === 'lasso') { if (dr.moved && dr.pts.length > 4) eraseArea(pg, { poly: dr.pts }); return; }
     if (dr.moved && rc.w > 0.004 && rc.h > 0.003) eraseArea(pg, rc);
     return;
@@ -2051,10 +2064,57 @@ function eraseArea(pg, sp) { // sp: a rectangle {x,y,w,h}, a lasso {poly:[{x,y}.
     return putBlob(pg.id, blob).then(function () { toast(what + ' Undo brings it back.'); });
   }).then(function () { render(); save(); if (wasErase && !S.erase) setErase(true); });
 }
+/* ---------- move a part of the scan: lasso it, then drag it ---------- */
+function polyMask(poly, W, H) {
+  var mask = new Uint8Array(W * H), P = poly.map(function (p) { return [p.x * W, p.y * H]; }), by0 = H, by1 = 0, i, xx, yy;
+  P.forEach(function (p) { by0 = Math.min(by0, p[1]); by1 = Math.max(by1, p[1]); });
+  for (yy = Math.max(0, by0 | 0); yy <= Math.min(H - 1, by1 | 0); yy++) { var xs = [];
+    for (i = 0; i < P.length; i++) { var a = P[i], b = P[(i + 1) % P.length]; if ((a[1] <= yy) !== (b[1] <= yy)) xs.push(a[0] + (yy - a[1]) * (b[0] - a[0]) / (b[1] - a[1])); }
+    xs.sort(function (p, q) { return p - q; });
+    for (i = 0; i + 1 < xs.length; i += 2) for (xx = Math.max(0, Math.ceil(xs[i])); xx <= Math.min(W - 1, xs[i + 1] | 0); xx++) mask[yy * W + xx] = 1; }
+  return mask;
+}
+function liftArea(pg, poly) {
+  return pageCanvas(pg).then(function (c) {
+    var x = c.getContext('2d'), W = c.width, H = c.height, img = x.getImageData(0, 0, W, H), d = img.data, mask = polyMask(poly, W, H), bb = [W, H, -1, -1], i;
+    for (i = 0; i < W * H; i++) if (mask[i]) { var px = i % W, py = (i - px) / W; if (px < bb[0]) bb[0] = px; if (px > bb[2]) bb[2] = px; if (py < bb[1]) bb[1] = py; if (py > bb[3]) bb[3] = py; }
+    if (bb[2] < 0) return toast('Nothing inside the loop.');
+    var bw = bb[2] - bb[0] + 1, bh = bb[3] - bb[1] + 1, col = paperColor(d, W, H, function (a, b) { return mask[b * W + a]; }, bb);
+    var pc = document.createElement('canvas'); pc.width = bw; pc.height = bh; var pctx = pc.getContext('2d'), pim = pctx.createImageData(bw, bh);
+    var hc = document.createElement('canvas'); hc.width = bw; hc.height = bh; var hctx = hc.getContext('2d'), him = hctx.createImageData(bw, bh);
+    for (var yy = 0; yy < bh; yy++) for (var xx = 0; xx < bw; xx++) { var k = (yy + bb[1]) * W + xx + bb[0], o = (yy * bw + xx) * 4; if (!mask[k]) continue;
+      pim.data[o] = d[k * 4]; pim.data[o + 1] = d[k * 4 + 1]; pim.data[o + 2] = d[k * 4 + 2]; pim.data[o + 3] = 255;
+      him.data[o] = col[0]; him.data[o + 1] = col[1]; him.data[o + 2] = col[2]; him.data[o + 3] = 255; }
+    pctx.putImageData(pim, 0, 0); hctx.putImageData(him, 0, 0);
+    var box = { x: bb[0] / W, y: bb[1] / H, w: bw / W, h: bh / H }, el = document.createElement('div'), hole = document.createElement('div');
+    el.className = 'mvpiece'; hole.className = 'mvhole'; pc.style.cssText = hc.style.cssText = 'width:100%;height:100%;display:block';
+    el.appendChild(pc); hole.appendChild(hc); place(el, box); place(hole, box);
+    S.mv = { pg: pg, box: box, dx: 0, dy: 0, el: el, hole: hole, piece: pc, holeC: hc, W: W, H: H };
+    $('layer').appendChild(hole); $('layer').appendChild(el);
+    toast('Now drag the piece where you want it. Tap outside it to let go.', 5000);
+  });
+}
+function dropMove() { if (!S.mv) return; S.mv.el.remove(); S.mv.hole.remove(); S.mv = null; }
+function commitMove() {
+  var m = S.mv, pg = m.pg, old = pg.blob, wasErase = S.erase;
+  return pageCanvas(pg).then(function (c) {
+    if (c.width !== m.W || c.height !== m.H) return null;
+    var x = c.getContext('2d'), bx = Math.round(m.box.x * m.W), by = Math.round(m.box.y * m.H);
+    x.drawImage(m.holeC, bx, by); x.drawImage(m.piece, Math.round((m.box.x + m.dx) * m.W), Math.round((m.box.y + m.dy) * m.H));
+    return canvasBlob(c, 0.92);
+  }).then(function (blob) {
+    if (!blob) { dropMove(); return; }
+    undo.push([{ id: pg.id, boxes: JSON.stringify(pg.boxes), blob: old }]);
+    m.box = { x: m.box.x + m.dx, y: m.box.y + m.dy, w: m.box.w, h: m.box.h }; m.dx = m.dy = 0; // keep the piece picked up so it can be nudged again
+    place(m.hole, m.box); // the fill now sits under the piece, ready if it is moved again
+    URL.revokeObjectURL(pg.url); pg.blob = blob; pg.url = URL.createObjectURL(blob);
+    return putBlob(pg.id, blob).then(function () { toast('Moved. Drag again to adjust, or tap outside to finish. Undo puts it back.'); });
+  }).then(function () { render(); save(); });
+}
 function setErase(on) {
-  S.erase = !!on && (S.mode === 'test' || S.mode === 'check') && !!page();
+  S.erase = !!on && (S.mode === 'test' || S.mode === 'check') && !!page(); if (!S.erase) dropMove();
   document.body.classList.toggle('erasing', S.erase); $('bErase').classList.toggle('on', S.erase);
-  if (S.erase) { S.sel = []; render(); toast({ rect: 'Erase is ON: drag a box over what you want gone.', lasso: 'Erase is ON: draw a loop around what you want gone.', tap: 'Erase is ON: tap a drawing or mark and the whole shape goes.' }[$('eShape').value] + ' Press "Erase background" again when you finish.', 6000); }
+  if (S.erase) { S.sel = []; render(); toast({ rect: 'Erase is ON: drag a box over what you want gone.', lasso: 'Erase is ON: draw a loop around what you want gone.', tap: 'Erase is ON: tap a drawing or mark and the whole shape goes.', move: 'Move is ON: draw a loop around a picture or part of the page, then drag it.' }[$('eShape').value] + ' Press the button again when you finish.', 6000); }
 }
 
 /* ---------- Check mode: the teacher marks a worksheet ---------- */
@@ -3230,7 +3290,7 @@ $('bDel').onclick = delSel; $('bDup').onclick = dupSel;
 $('bErase').onclick = function () { setErase(!S.erase); };
 document.querySelectorAll('#mErase .es').forEach(function (b) { b.onclick = function () {
   $('eShape').value = b.dataset.es; document.querySelectorAll('#mErase .es').forEach(function (o) { o.classList.toggle('on', o === b); });
-  $('bErase').textContent = { rect: 'Erase background', lasso: '➰ Erase background', tap: '✨ Erase background' }[b.dataset.es]; closeMenus(); setErase(true);
+  $('bErase').textContent = { rect: 'Erase background', lasso: '➰ Erase background', tap: '✨ Erase background', move: '✥ Move background' }[b.dataset.es]; closeMenus(); setErase(true);
 }; });
 $('checkbar').addEventListener('click', function (e) {
   var b = e.target.closest('[data-tool]'), sw = e.target.closest('[data-c]');
