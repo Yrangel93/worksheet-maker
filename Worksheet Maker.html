@@ -380,6 +380,9 @@ body.check.showBoxes .ghost .gb{border:1.5px solid var(--g5);background:rgba(22,
   <div class="menu" id="mFind">
     <button class="btn main" id="bFind" title="Looks for the answer lines on all pages of this file and puts a box on each one">Find<span class="long2"> answer</span> lines</button><button class="btn" data-menu title="More options">▾</button>
     <div class="pop">
+      <div class="lbl">Answer boxes</div>
+      <button class="item" id="bFindAll"><b>Find answer lines — all open files</b></button>
+      <hr>
       <div class="lbl">Fix the scan — tick what you want</div>
       <label class="chk"><input type="checkbox" id="co_str" checked> Straighten the page</label>
       <label class="chk"><input type="checkbox" id="co_bg" checked> White background (gray paper)</label>
@@ -1838,7 +1841,7 @@ function autoFix(first) { // "When I add a file": straighten and/or fix every pa
 function render() {
   var pg = page(), has = !!pg;
   $('empty').classList.toggle('hide', has); $('pagewrap').classList.toggle('hide', !has);
-  ['bFind', 'bClean', 'bStr', 'bFix', 'bFixFile', 'bUnfix', 'bUndo', 'bRedo', 'bPrev', 'bNext', 'bClearTest'].forEach(function (id) { $(id).disabled = !has; });
+  ['bFind', 'bFindAll', 'bClean', 'bStr', 'bFix', 'bFixFile', 'bUnfix', 'bUndo', 'bRedo', 'bPrev', 'bNext', 'bClearTest'].forEach(function (id) { $(id).disabled = !has; });
   document.querySelectorAll('#bar [data-menu]').forEach(function (b) { if (!b.closest('#mOpen')) b.disabled = !has; });
   // file list
   var h = '';
@@ -3461,6 +3464,7 @@ var dirMode = 'open';
 $('dir').onchange = function () { var fl = Array.prototype.slice.call(this.files); this.value = ''; if (dirMode === 'convert') convertFolder(fl); else openFiles(fl.filter(usable)); };
 $('file').onchange = function () { openFiles(this.files); this.value = ''; };
 $('bFind').onclick = function () { findLines('file'); };
+$('bFindAll').onclick = function () { closeMenus(); if (S.docs.length) findLines('all'); };
 $('bStr').onclick = function () { straighten('page'); };
 $('bStrFile').onclick = function () { straighten('file'); };
 $('bClean').onclick = function () { clean('page'); };
