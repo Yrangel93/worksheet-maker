@@ -332,6 +332,11 @@ body.multi #pagewrap{outline:4px solid var(--g5,#22c55e);outline-offset:3px}
 .bar>*,.bar .menu>*{flex-shrink:0}
 #checkbar #mText>[data-tool=type]{min-width:44px;font-size:17px;font-weight:700;font-family:Georgia,'Times New Roman',serif;letter-spacing:0}
 #checkbar #mText>[data-menu],#checkbar #mErase>[data-menu]{min-width:30px}
+/* answer boxes easy to see, the same on the page you are on and on the other pages in the scroll */
+body.test .box{border:2px solid #166534;background:rgba(220,252,231,.55)}
+.ghost .gb{border:2px solid #166534;background:rgba(220,252,231,.55);color:var(--blue)}
+body.check .ghost .gb{border:0;background:none}
+body.check.showBoxes .ghost .gb{border:1.5px solid var(--g5);background:rgba(22,163,74,.10)}
 </style>
 </head>
 <body class="test">
