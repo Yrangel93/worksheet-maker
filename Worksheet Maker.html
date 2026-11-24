@@ -337,6 +337,11 @@ body.test .box{border:2px solid #166534;background:rgba(220,252,231,.55)}
 .ghost .gb{border:2px solid #166534;background:rgba(220,252,231,.55);color:var(--blue)}
 body.check .ghost .gb{border:0;background:none}
 body.check.showBoxes .ghost .gb{border:1.5px solid var(--g5);background:rgba(22,163,74,.10)}
+/* every button with a ▾ menu: a small space between the button and its arrow, the same everywhere */
+.bar .menu{display:inline-flex;align-items:center;gap:6px}
+.bar .menu>.btn+.btn,#checkbar .menu>.btn+.btn{margin-left:0;border-radius:8px}
+#checkbar #ckShapeBtn,#checkbar [data-tool=stamp]{margin-right:6px;border-radius:8px}
+#checkbar #ckShape,#checkbar #ckStamp{border-radius:8px}
 </style>
 </head>
 <body class="test">
@@ -352,6 +357,10 @@ body.check.showBoxes .ghost .gb{border:1.5px solid var(--g5);background:rgba(22,
     <button class="btn main" id="bOpen">Add file</button><button class="btn" data-menu title="More: folders, start new">▾</button>
     <div class="pop">
       <button class="item" id="bOpen3">Add file…</button>
+      <div class="lbl">When I add a file</div>
+      <label class="chk"><input type="checkbox" id="optStraight"> Straighten it right away</label>
+      <label class="chk"><input type="checkbox" id="optClean"> Fix the scan right away (the ticks under Find ▾)</label>
+      <hr>
       <button class="item deskonly" id="bOpenDir">Open a whole folder here (to check and edit)</button>
       <hr class="deskonly">
       <div class="lbl deskonly">Automatic, no checking</div>
@@ -360,8 +369,6 @@ body.check.showBoxes .ghost .gb{border:1.5px solid var(--g5);background:rgba(22,
       <label class="chk deskonly"><input type="radio" name="folFor" value="docx"> Word or Pages (computer, iPad, iPhone)</label>
       <label class="chk deskonly"><input type="radio" name="folFor" value="docxt"> Word Online (in a browser)</label>
       <button class="item deskonly" id="bConvDir"><b>Convert a whole folder</b>…</button>
-      <label class="chk deskonly"><input type="checkbox" id="optStraight"> Also straighten every scan first</label>
-      <label class="chk deskonly"><input type="checkbox" id="optClean"> Also clean every scan first (slower)</label>
       <hr>
       <button class="item" id="bNew">Start new (close all files)</button>
     </div>
@@ -379,6 +386,7 @@ body.check.showBoxes .ghost .gb{border:1.5px solid var(--g5);background:rgba(22,
       <label class="chk"><input type="checkbox" id="co_speck" checked> Remove little specks and dots</label>
       <label class="chk"><input type="checkbox" id="co_edge" checked> Remove dark borders from scanning</label>
       <label class="chk"><input type="checkbox" id="co_art" checked> Remove the big "A" and the pencil</label>
+      <label class="chk"><input type="checkbox" id="co_fit" checked> Fill the page (cut the empty border, like a phone scan)</label>
       <button class="item" id="bFix"><b>Fix — this page</b></button>
       <button class="item" id="bFixFile"><b>Fix — all pages of this file</b></button>
       <button class="item" id="bUnfix">Undo — bring back the original scan of this page</button>
@@ -1247,7 +1255,7 @@ function findAnswerLines(rgba, W, H, opt) {
       // a place to write must be (almost) empty: this drops edges inside drawings and photos
       var inkN = 0, allN = 0;
       for (y = Math.round(bottom - h); y < bottom - 1; y += 2) for (x = x1; x <= x2; x += 2) { allN++; if (inkAt(x, y)) inkN++; }
-      if (allN && inkN / allN > (s.l.tall ? 0.25 : bottom < H * 0.2 && x2 - x1 > W * 0.4 ? 0.16 : 0.1)) { /* name rows at the top can show print from the back of the sheet */ stats.pictures = (stats.pictures || 0) + 1; return; }
+      if (allN && inkN / allN > (s.l.tall ? 0.25 : bottom < H * 0.2 && x2 - x1 > W * 0.4 ? 0.22 : 0.1)) { /* name rows at the top can show print from the back of the sheet */ stats.pictures = (stats.pictures || 0) + 1; return; }
       if (x2 - x1 < W * 0.06) { // a very short "line" in a busy spot is part of a drawing
         var vals = [], yb0 = Math.round(bottom - hNom), busy = 0;
         for (y = yb0; y < bottom + hNom * 0.6; y += 2) for (x = x1; x <= x2; x += 2) if (y >= 0 && y < H) vals.push(ink[y * W + x]);
@@ -1810,8 +1818,21 @@ function openFiles(list) {
     if (bad.length) ask('Some files could not be opened', bad.join(', ') + '. Use PDF, JPG or PNG files. (iPhone HEIC photos: export them as JPG first.)');
     else if (S.docs.slice(first).some(function (d) { return d.filled; })) toast('This file already has typing boxes (a worksheet a student sent back?). Press "Teacher mode" to mark it.', 7000);
     else toast('Opened ' + (S.docs.length - first) + ' file(s). Now press "Find answer lines".');
+    return autoFix(first);
   });
 }
+function autoFix(first) { // "When I add a file": straighten and/or fix every page of the new files
+  var st = $('optStraight').checked, cl = $('optClean').checked;
+  if (!st && !cl) return;
+  var o = cleanOpts(), k = first;
+  cleanPixels.skip = { bg: !o.bg, speck: !o.speck, edge: !o.edge, art: !o.art, fit: !o.fit };
+  return (function next() {
+    if (k >= S.docs.length) return;
+    S.d = k++; S.p = 0; render();
+    return Promise.resolve(st ? straighten('file', true) : null).then(function () { if (cl) return clean('file', true); }).then(next);
+  })();
+}
+['optStraight', 'optClean'].forEach(function (id) { try { $(id).checked = localStorage.getItem('wm_' + id) === '1'; } catch (e) {} $(id).addEventListener('change', function () { try { localStorage.setItem('wm_' + id, this.checked ? '1' : '0'); } catch (e) {} }); });
 
 /* ---------- drawing the screen ---------- */
 function render() {
@@ -2512,6 +2533,24 @@ function cleanPixels(d, W, H, frames) {
       for (y = y0; y <= y1; y++) for (x = a.x0; x <= b.x1; x++) pic[y * W + x] = 1;
     }); });
   })();
+  (function () { // the copyright line printed sideways down the left (or right) margin: it is never wiped
+    var strong = Math.max(70, lo * 2.5), cols = [], x, y;
+    for (x = Math.round(W * 0.01); x < W - Math.round(W * 0.01); x++) {
+      if (x > W * 0.09 && x < W * 0.91) { x = Math.round(W * 0.91); }
+      var c = 0; for (y = 0; y < H; y++) if (ink[y * W + x] > strong) c++;
+      if (c > H * 0.08 && c < H * 0.6) cols.push(x);
+    }
+    var groups = []; cols.forEach(function (cx) { var g = groups[groups.length - 1]; if (g && cx - g.x1 <= 4) g.x1 = cx; else groups.push({ x0: cx, x1: cx }); });
+    groups.forEach(function (g) {
+      if (g.x1 - g.x0 < 3 || g.x1 - g.x0 > W * 0.035) return;
+      var rows = []; for (y = 0; y < H; y++) { for (x = g.x0; x <= g.x1; x++) if (ink[y * W + x] > strong) { rows.push(y); break; } }
+      var best = null, cur = null, gap = Math.round(H * 0.03); // the longest stretch of text with no big gap
+      rows.forEach(function (ry) { if (cur && ry - cur.y1 <= gap) { cur.y1 = ry; cur.n++; } else { cur = { y0: ry, y1: ry, n: 1 }; } if (!best || cur.y1 - cur.y0 > best.y1 - best.y0) best = cur; });
+      if (!best || best.y1 - best.y0 < H * 0.2 || best.n > (best.y1 - best.y0) * 0.85) return; // too short, or solid dark all the way (a scan shadow)
+      for (y = Math.max(0, best.y0 - 8); y <= Math.min(H - 1, best.y1 + 8); y++) for (x = Math.max(0, g.x0 - 5); x <= Math.min(W - 1, g.x1 + 5); x++) pic[y * W + x] = 1;
+      if (cleanPixels.dbg) cleanPixels.dbg.push(['vtext', g.x0, g.x1, best.y0, best.y1]);
+    });
+  })();
   var hline = new Uint8Array(N); // thin printed lines (answer lines): the watermark and pencil passes never cut them
   (function () {
     var minRun = Math.round(W * 0.15), x, y; // a long run: an answer line, not a streak in the watermark
@@ -2523,8 +2562,10 @@ function cleanPixels(d, W, H, frames) {
   })();
   var fline = new Uint8Array(N); // faint thin straight lines (the pointer lines of a labelled picture): the white-paper step must not wipe them
   (function () {
-    var thr = Math.max(10, lo * 0.55), minRun = Math.round(W * 0.03), x, y;
-    for (y = 0; y < H; y++) { var run = 0, gapR = 0; for (x = 0; x <= W; x++) { var on = x < W && ink[y * W + x] > thr; if (on) { run += 1 + gapR; gapR = 0; } else if (run && gapR < 2 && x < W) gapR++; else { if (run >= minRun) for (var k = x - run - gapR; k < x - gapR; k++) fline[y * W + k] = 1; run = 0; gapR = 0; } } }
+    var thr = Math.max(10, lo * 0.55), minRun = Math.round(W * 0.03), x, y, strong = Math.max(60, lo * 2.5);
+    function touches(yy, a, b) { // a pointer line runs up to its label or picture; a line showing through from the back of the sheet floats alone
+      var n = 0; [a, b].forEach(function (e, s) { for (var dy = -3; dy <= 3; dy++) { var ry = yy + dy; if (ry < 0 || ry >= H) continue; for (var dx = 1; dx <= 8; dx++) { var rx = s ? e + dx : e - dx; if (rx >= 0 && rx < W && ink[ry * W + rx] > strong) { n++; return; } } } }); return n > 1; }
+    for (y = 0; y < H; y++) { var run = 0, gapR = 0; for (x = 0; x <= W; x++) { var on = x < W && ink[y * W + x] > thr; if (on) { run += 1 + gapR; gapR = 0; } else if (run && gapR < 2 && x < W) gapR++; else { if (run >= minRun && touches(y, x - run - gapR, x - gapR - 1)) for (var k = x - run - gapR; k < x - gapR; k++) fline[y * W + k] = 1; run = 0; gapR = 0; } } }
     for (x = 0; x < W; x++) { var vr = 0; for (y = 0; y <= H; y++) { var hv = y < H && fline[y * W + x]; if (hv) vr++; else { if (vr > 5) for (var k2 = y - vr; k2 < y; k2++) fline[k2 * W + x] = 0; vr = 0; } } } // only thin lines, not filled shapes
   })();
   var wmw = new Uint8Array(N), inWm = false;
@@ -2700,7 +2741,7 @@ function cleanPixels(d, W, H, frames) {
       for (i = 0; i < L; i++) {
         if (keepR[i]) continue;
         var upto = s0[i] >= 0 ? Math.max(e0[i], core) : core;
-        for (dd = 0; dd <= upto; dd++) { var q = at(i, dd); if (ink[q] > lo && !hline[q]) { ink[q] = 0; d[q * 4] = d[q * 4 + 1] = d[q * 4 + 2] = 255; } }
+        for (dd = 0; dd <= upto; dd++) { var q = at(i, dd); if (ink[q] > lo && !hline[q] && !pic[q]) { ink[q] = 0; d[q * 4] = d[q * 4 + 1] = d[q * 4 + 2] = 255; } }
       }
     }
     side(true, false); side(true, true); side(false, false); side(false, true);
@@ -2763,11 +2804,16 @@ function cleanPixels(d, W, H, frames) {
     var med = ws[ws.length >> 1], top = ws[Math.floor(ws.length * 0.98)];
     return top >= med * 2.5 || med >= W * 0.008; // wedge / ragged, or simply a fat band
   }
+  function wordNext(cp) { // a letter has the rest of its word right beside it (the "T" of "Teacher's" near the edge): not a scanner dash
+    var reach = Math.round(W * 0.012), y, x, hit = 0;
+    for (y = cp.y0; y <= cp.y1; y++) { for (x = cp.x1 + 2; x <= Math.min(W - 1, cp.x1 + reach); x++) if (ink[y * W + x] > lo * 2) { hit++; break; } for (x = cp.x0 - 2; x >= Math.max(0, cp.x0 - reach); x--) if (ink[y * W + x] > lo * 2) { hit++; break; } }
+    return hit >= (cp.y1 - cp.y0 + 1) * 0.3;
+  }
   var seen2 = new Uint8Array(N), dashes = [];
   comps.forEach(function (cp) {
     var bw = cp.x1 - cp.x0 + 1, bh = cp.y1 - cp.y0 + 1;
     if (bh >= H * 0.25 || bw >= W * 0.3) { if (streak(cp)) { cp.gone = true; wipe(cp.s); } }
-    else if (cp.x1 < zD || cp.x0 >= W - zD) { cp.solid = bw <= W * 0.03 && bh <= H * 0.06 && cp.a >= 0.7 * bw * bh && cp.a >= 12; dashes.push(cp); }
+    else if ((cp.x1 < zD || cp.x0 >= W - zD) && !wordNext(cp)) { cp.solid = bw <= W * 0.03 && bh <= H * 0.06 && cp.a >= 0.7 * bw * bh && cp.a >= 12; dashes.push(cp); }
   });
   // (2) solid dashes stacked in one narrow column at the very edge. Letters and numbers printed in the
   //     margin are not solid blocks, so a column of print never qualifies.
@@ -2802,16 +2848,17 @@ function cleanPixels(d, W, H, frames) {
     for (y = 0; y < H; y++) { seeds.push(y * W, y * W + 1, y * W + W - 1, y * W + W - 2); }
     seeds.forEach(function (s0) {
       if (seen[s0] || ink[s0] <= lo) return;
-      var st = [s0], comp = [], inward = false; seen[s0] = 1;
+      var st = [s0], comp = [], inward = false, inN = 0, cap2 = 0.002 * N; seen[s0] = 1;
       while (st.length) {
         var q = st.pop(), qx = q % W, qy = (q - qx) / W;
-        if (qx > bx && qx < W - 1 - bx && qy > by && qy < H - 1 - by) { inward = true; continue; }
+        var deepIn = qx > bx && qx < W - 1 - bx && qy > by && qy < H - 1 - by;
+        if (deepIn) { inward = true; if (++inN > cap2) break; } // it keeps going into the page: print (a rule with letters on it), not a shadow
         if (hline[q] && qx > 4 && qx < W - 5 && qy > 4 && qy < H - 5) continue; // a printed frame line near the edge stays
-        comp.push(q);
+        if (!deepIn) comp.push(q);
         var nb = [qx > 0 ? q - 1 : -1, qx < W - 1 ? q + 1 : -1, qy > 0 ? q - W : -1, qy < H - 1 ? q + W : -1];
         for (var t = 0; t < 4; t++) { var n = nb[t]; if (n >= 0 && !seen[n] && ink[n] > lo) { seen[n] = 1; st.push(n); } }
       }
-      if (inward && comp.length > 0.002 * N) return; // a big shape running into the page: print, not a shadow
+      if (inward && (comp.length > 0.002 * N || inN > cap2)) return; // a big shape running into the page: print, not a shadow
       for (var c = 0; c < comp.length; c++) if (!pic[comp[c]]) kill[comp[c]] = 1;
     });
   })();
@@ -2825,6 +2872,11 @@ function cleanPixels(d, W, H, frames) {
         if (qx > sx * 2 && qx < W - 1 - sx * 2 && qy > sy * 2 && qy < H - 1 - sy * 2) ok = false;
         if (comp.length > N * 0.01) { ok = false; }
         [qx > 0 ? q - 1 : -1, qx < W - 1 ? q + 1 : -1, qy > 0 ? q - W : -1, qy < H - 1 ? q + W : -1].forEach(function (n) { if (n >= 0 && !sn[n] && ink[n] > lo) { sn[n] = 1; st.push(n); } });
+      }
+      if (ok) { // a letter at the very edge of a word (the "T" of "Teacher's" cut by the scan) has more letters right beside it: kept
+        var cx0 = W, cx1 = 0, cy0 = H, cy1 = 0; comp.forEach(function (q) { var qx = q % W, qy = (q - qx) / W; if (qx < cx0) cx0 = qx; if (qx > cx1) cx1 = qx; if (qy < cy0) cy0 = qy; if (qy > cy1) cy1 = qy; });
+        var reach = Math.round(W * 0.012), cs = {}; comp.forEach(function (q) { cs[q] = 1; });
+        for (var ry = cy0; ry <= cy1 && ok; ry++) { for (var rx = Math.max(0, cx0 - reach); rx <= Math.min(W - 1, cx1 + reach); rx++) { var rq = ry * W + rx; if (!cs[rq] && ink[rq] > lo * 2 && rx > sx && rx < W - 1 - sx) { ok = false; break; } } }
       }
       if (ok) comp.forEach(function (q) { if (!pic[q]) kill[q] = 1; });
     }
@@ -2897,7 +2949,8 @@ function cleanPage(pg, onlyStraight) { // onlyStraight: just turn the page level
         x2.setTransform(1, 0, 0, 1, 0, 0); c = c2; x = x2;
         rotBoxes(pg, W, H, ang); pg.rotRad = (pg.rotRad || 0) + ang; // keep existing boxes on their lines
       }
-      if (!onlyStraight) { var im = x.getImageData(0, 0, W, H); cleanPixels(im.data, W, H, r.stats.frameRects); x.putImageData(im, 0, 0); pg.hadPencil = cleanPixels.pencil; }
+      if (!onlyStraight) { var im = x.getImageData(0, 0, W, H); cleanPixels(im.data, W, H, r.stats.frameRects); x.putImageData(im, 0, 0); pg.hadPencil = cleanPixels.pencil;
+        if (!(cleanPixels.skip || {}).fit) { var fc = fitPage(c, im.data, W, H, pg); if (fc) { c = fc; x = c.getContext('2d'); } } }
       return canvasBlob(c, 0.9);
     });
   }).then(function (blob) {
@@ -2919,9 +2972,36 @@ function cleanPage(pg, onlyStraight) { // onlyStraight: just turn the page level
     });
   });
 }
+/* fill the page like a phone scan: cut the empty border around the printed sheet and stretch the sheet (only a little out of shape) to the page */
+function fitPage(c, d, W, H, pg) {
+  var cols = new Int32Array(W), rows = new Int32Array(H), x, y, ex = Math.round(W * 0.004), ey = Math.round(H * 0.004);
+  for (y = ey; y < H - ey; y += 2) for (x = ex; x < W - ex; x += 2) { var j = (y * W + x) * 4; if (Math.min(d[j], d[j + 1], d[j + 2]) < 190) { cols[x]++; rows[y]++; } }
+  function span(a, n, need) { var i0 = 0, i1 = n - 1; while (i0 < n && a[i0] < need) i0++; while (i1 > i0 && a[i1] < need) i1--; return [i0, i1]; }
+  var sx = span(cols, W, 3), sy = span(rows, H, 3);
+  if (sx[1] - sx[0] < W * 0.5 || sy[1] - sy[0] < H * 0.5) return null;
+  var mx = W * 0.035, my = H * 0.03; // a small white margin all round, like a printed page
+  var x0 = Math.max(0, sx[0] - mx), x1 = Math.min(W, sx[1] + mx), y0 = Math.max(0, sy[0] - my), y1 = Math.min(H, sy[1] + my), cw = x1 - x0, ch = y1 - y0;
+  var kx = W / cw, ky = H / ch, lim = 1.03; // stretch one way at most 3% more than the other
+  if (kx > ky * lim) { var ncw = W / (ky * lim), cx = (x0 + x1) / 2; x0 = Math.max(0, Math.min(W - ncw, cx - ncw / 2)); cw = Math.min(W, ncw); }
+  else if (ky > kx * lim) { var nch = H / (kx * lim), cy = (y0 + y1) / 2; y0 = Math.max(0, Math.min(H - nch, cy - nch / 2)); ch = Math.min(H, nch); }
+  if (cw > W * 0.985 && ch > H * 0.985) return null; // already fills the page
+  var c2 = document.createElement('canvas'); c2.width = W; c2.height = H; var x2 = c2.getContext('2d');
+  x2.fillStyle = '#fff'; x2.fillRect(0, 0, W, H); x2.imageSmoothingQuality = 'high'; x2.drawImage(c, x0, y0, cw, ch, 0, 0, W, H);
+  var t = [x0 / W, y0 / H, cw / W, ch / H]; fitBoxes(pg, t, false); pg.fitT = t;
+  return c2;
+}
+function fitBoxes(pg, t, back) {
+  (pg.boxes || []).forEach(function (b) { if (back) { b.x = t[0] + b.x * t[2]; b.y = t[1] + b.y * t[3]; b.w *= t[2]; b.h *= t[3]; } else { b.x = (b.x - t[0]) / t[2]; b.y = (b.y - t[1]) / t[3]; b.w /= t[2]; b.h /= t[3]; } });
+  (pg.marks || []).forEach(function (m) { function fx(v) { return back ? t[0] + v * t[2] : (v - t[0]) / t[2]; } function fy(v) { return back ? t[1] + v * t[3] : (v - t[1]) / t[3]; }
+    if (m.x != null) m.x = fx(m.x); if (m.y != null) m.y = fy(m.y); if (m.x2 != null) m.x2 = fx(m.x2); if (m.y2 != null) m.y2 = fy(m.y2);
+    if (m.w != null) m.w = back ? m.w * t[2] : m.w / t[2]; if (m.h != null) m.h = back ? m.h * t[3] : m.h / t[3];
+    if (m.pts) m.pts = m.pts.map(function (q) { return Array.isArray(q) ? [fx(q[0]), fy(q[1])] : { x: fx(q.x), y: fy(q.y) }; }); });
+}
+function unfit(pg) { if (pg.fitT) { fitBoxes(pg, pg.fitT, true); pg.fitT = null; } }
 function uncleanPage(pg) {
   if (pg.cleaned && !pg.straightOnly) return getBlob(pg.id + ':mid').then(function (m) { // straightened, then cleaned: undo only the clean
     if (!m) return unclean0(pg);
+    unfit(pg);
     return putBlob(pg.id, m).then(function () { URL.revokeObjectURL(pg.url); pg.blob = m; pg.url = URL.createObjectURL(m); pg.straightOnly = true; pg.straightDone = false; return delBlob(pg.id + ':mid'); });
   });
   return unclean0(pg);
@@ -2929,6 +3009,7 @@ function uncleanPage(pg) {
 function unclean0(pg) {
   pg.straightDone = false;
   return getBlob(pg.id + ':orig').then(function (b) {
+    if (b) unfit(pg);
     if (!b) { pg.cleaned = false; pg.straightOnly = false; return; }
     if (pg.rotRad) { rotBoxes(pg, pg.w, pg.h, -pg.rotRad); pg.rotRad = 0; }
     return putBlob(pg.id, b).then(function () { URL.revokeObjectURL(pg.url); pg.blob = b; pg.url = URL.createObjectURL(b); pg.cleaned = false; pg.straightOnly = false; return delBlob(pg.id + ':orig'); });
@@ -2947,12 +3028,12 @@ function straighten(scope, keep) {
   }).then(function () { idle(); render(); save(); toast(n ? 'Straightened ' + n + ' page' + (n === 1 ? '' : 's') + '. Boxes moved with the page. Undo brings it back.' : 'Nothing to straighten: the page is already level, or it is a typed PDF.'); },
     function (e) { console.error(e); idle(); toast('Sorry, straightening did not work on this page.'); });
 }
-function cleanOpts() { var o = {}; ['str', 'bg', 'speck', 'edge', 'art'].forEach(function (k) { o[k] = $('co_' + k).checked; }); return o; }
+function cleanOpts() { var o = {}; ['str', 'bg', 'speck', 'edge', 'art', 'fit'].forEach(function (k) { o[k] = $('co_' + k).checked; }); return o; }
 function cleanGo(scope) { // the ticked steps, in order: straighten first, then clean
   var o = cleanOpts(); closeMenus();
-  var any = o.bg || o.speck || o.edge || o.art;
+  var any = o.bg || o.speck || o.edge || o.art || o.fit;
   if (!o.str && !any) return toast('Tick at least one thing to fix.');
-  cleanPixels.skip = { bg: !o.bg, speck: !o.speck, edge: !o.edge, art: !o.art };
+  cleanPixels.skip = { bg: !o.bg, speck: !o.speck, edge: !o.edge, art: !o.art, fit: !o.fit };
   var redo = allPages(scope).filter(function (g) { return g.cleaned; }); // fixed before: start again from the original scan so the new choices apply
   var p = (redo.length ? busy('Starting from the original scan…').then(function () { return Promise.all(redo.map(unclean0)); }).then(idle) : Promise.resolve())
     .then(function () { if (o.str) return straighten(scope, true); });
@@ -3327,7 +3408,7 @@ function relPath(f) { return (f.webkitRelativePath || f.name).replace(/^[^/]+\//
 function convertFolder(list) {
   var files = Array.prototype.slice.call(list).filter(usable).sort(function (x, y) { return relPath(x).localeCompare(relPath(y), undefined, { numeric: true }); });
   if (!files.length) return ask('Nothing to convert', 'That folder has no PDF, JPG or PNG files.');
-  var folder = (files[0].webkitRelativePath || '').split('/')[0] || 'Worksheets', doClean = $('optClean').checked, doStraight = $('optStraight').checked && !doClean, fk = (document.querySelector('input[name=folFor]:checked') || {}).value || 'pdf', ext = fk === 'pdf' ? '.pdf' : '.docx', tag = fk === 'pdf' ? ' (fillable)' : fk === 'docxt' ? ' (editable, Word Online)' : fk === 'docxp' ? ' (editable, Pages)' : ' (editable, Word computer)', what = fk === 'pdf' ? 'a fillable PDF' : 'a Word file';
+  var folder = (files[0].webkitRelativePath || '').split('/')[0] || 'Worksheets', doClean = $('optClean').checked, doStraight = $('optStraight').checked, fk = (document.querySelector('input[name=folFor]:checked') || {}).value || 'pdf', ext = fk === 'pdf' ? '.pdf' : '.docx', tag = fk === 'pdf' ? ' (fillable)' : fk === 'docxt' ? ' (editable, Word Online)' : fk === 'docxp' ? ' (editable, Pages)' : ' (editable, Word computer)', what = fk === 'pdf' ? 'a fillable PDF' : 'a Word file';
   return ask('Convert the whole folder?', files.length + ' files found in "' + folder + '" (subfolders included). Each one gets answer boxes automatically' + (doClean ? ', is cleaned,' : doStraight ? ', is straightened,' : '') + ' and is saved as ' + what + '. You get ZIP files with the same subfolders in your Downloads. Your original files are not changed. This can take several minutes.', { ok: 'Convert ' + files.length + ' files' }).then(function (ok) {
     if (!ok) return;
     var out = [], size = 0, part = 1, used = {}, log = [], bad = [], boxesAll = 0, pagesAll = 0, i = 0, LIMIT = 180e6;
@@ -3350,7 +3431,7 @@ function convertFolder(list) {
           if (k >= d.pages.length) return;
           var pg = d.pages[k++]; pg.temp = true;
           $('busyT').textContent = head + ' — page ' + k + ' of ' + d.pages.length;
-          return (doClean ? cleanPage(pg) : doStraight ? cleanPage(pg, true) : Promise.resolve()).then(function () { return detect(pg); }).then(function (r) {
+          return (doStraight ? cleanPage(pg, true) : Promise.resolve()).then(function () { if (doClean) { var o = cleanOpts(); cleanPixels.skip = { bg: !o.bg, speck: !o.speck, edge: !o.edge, art: !o.art, fit: !o.fit }; return cleanPage(pg); } }).then(function () { return detect(pg); }).then(function (r) {
             pg.boxes = r.boxes.map(function (b) { return { id: nid(), x: b.x, y: b.y, w: b.w, h: b.h, multi: !!b.multi, fs: 0, v: '' }; }); nb += pg.boxes.length;
           }).then(function () { return new Promise(function (r) { setTimeout(r, 0); }); }).then(pageStep);
         }
