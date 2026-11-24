@@ -328,6 +328,10 @@ body.multi #pagewrap{outline:4px solid var(--g5,#22c55e);outline-offset:3px}
 #stage>.ghost:last-child,#stage>#pagewrap:last-child{margin-bottom:24px}
 #marks .mh{fill:#fff;stroke:#15803d;stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:all;cursor:nwse-resize;touch-action:none}
 #txPop .item.tx.on{background:var(--g1);box-shadow:inset 3px 0 0 var(--g5,#22c55e)}#txCols .sw{width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #0002;cursor:pointer;padding:0}#txCols .sw.on{outline:3px solid #15803d;outline-offset:1px}
+/* nothing in the tool rows may shrink: on a phone the row scrolls sideways instead */
+.bar>*,.bar .menu>*{flex-shrink:0}
+#checkbar #mText>[data-tool=type]{min-width:44px;font-size:17px;font-weight:700;font-family:Georgia,'Times New Roman',serif;letter-spacing:0}
+#checkbar #mText>[data-menu],#checkbar #mErase>[data-menu]{min-width:30px}
 </style>
 </head>
 <body class="test">
@@ -489,6 +493,7 @@ body.multi #pagewrap{outline:4px solid var(--g5,#22c55e);outline-offset:3px}
         <li>Press <b>Find answer lines</b> — a box appears on every answer line.</li>
         <li>Fix by hand if needed: add a box, or click a box and use its handles to move, resize or delete it.</li>
         <li>Type in the boxes to check them.</li>
+        <li>Before you save, look over every page: make sure all the text boxes are in the right spot.</li>
         <li>Press <b>Export</b> to download the fillable PDF (or Word file).</li>
       </ol>
     </div>
